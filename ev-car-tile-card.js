@@ -198,8 +198,8 @@ class EvCarTileCard extends HTMLElement {
 
     const charging = this._bool(e.charging, false);
     const home = this._bool(e.home, false);
-    const windowsClosed = this._bool(e.windows_closed, true);
-    const doorsClosed = this._bool(e.doors_closed, true);
+    const windowsClosed = !this._bool(e.windows_closed, false);
+    const doorsClosed = !this._bool(e.doors_closed, false);
     const climateOn = this._bool(e.climate_on, false);
     const climateTemp = this._num(e.climate_temp, 21);
 
