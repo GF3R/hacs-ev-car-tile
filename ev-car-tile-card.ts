@@ -500,7 +500,9 @@ class EvCarTileCard extends HTMLElement {
         .battery-labels {
           font-size: 10px;
           white-space: nowrap;
-          color: #223036;
+          color: var(--primary-text-color);
+          font-weight: 600;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
         }
 
         .car-overlay {
@@ -518,7 +520,9 @@ class EvCarTileCard extends HTMLElement {
         .range {
           margin: 2px 0 0;
           font-size: 12px;
-          color: #5e5a50;
+          color: var(--secondary-text-color);
+          font-weight: 500;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
         }
       </style>
 
