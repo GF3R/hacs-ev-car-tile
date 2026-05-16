@@ -515,14 +515,17 @@ class EvCarTileCard extends HTMLElement {
         .name {
           margin: 0;
           font-size: 15px;
+          color: var(--primary-text-color);
+          font-weight: 700;
+          text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
         }
 
         .range {
           margin: 2px 0 0;
           font-size: 12px;
-          color: var(--secondary-text-color);
+          color: var(--primary-text-color);
           font-weight: 500;
-          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+          text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
         }
       </style>
 
