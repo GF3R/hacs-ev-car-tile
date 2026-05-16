@@ -183,8 +183,8 @@ class EvCarTileCard extends HTMLElement {
           width: 100%;
           height: 100%;
           object-fit: contain;
-          object-position: center bottom;
-          transform: scale(1.15);
+          object-position: 44% bottom;
+          transform: scale(1.08);
           transform-origin: center bottom;
           filter: drop-shadow(0 16px 12px rgba(40, 38, 31, 0.2));
         }
@@ -203,7 +203,7 @@ class EvCarTileCard extends HTMLElement {
         }
         .power-chip {
           position: absolute;
-          left: 18%;
+          left: 10%;
           bottom: 84px;
           z-index: 5;
           padding: 3px 8px;
@@ -215,8 +215,8 @@ class EvCarTileCard extends HTMLElement {
         }
         .warning {
           position: absolute;
-          right: 8px;
-          top: 4px;
+          right: 2px;
+          top: 2px;
           display: ${warningVisible ? "inline-flex" : "none"};
           gap: 4px;
           z-index: 5;
@@ -230,7 +230,7 @@ class EvCarTileCard extends HTMLElement {
         .warning img.hidden { display: none; }
         .battery {
           position: absolute;
-          left: 76%;
+          left: 82%;
           bottom: 40px;
           width: 30px;
           z-index: 1;
