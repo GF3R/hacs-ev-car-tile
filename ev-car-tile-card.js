@@ -513,8 +513,13 @@ class EvCarTileCardEditor extends HTMLElement {
     picker.setAttribute("label", label);
     picker.setAttribute("allow-custom-entity", "");
     picker.dataset.path = path;
+    // hass must be set before value so the picker can resolve entity names
     if (this._hass) picker.hass = this._hass;
-    picker.value = this._get(path) || "";
+    // Defer value assignment until the element is upgraded
+    customElements.whenDefined("ha-entity-picker").then(() => {
+      picker.hass = this._hass;
+      picker.value = this._get(path) || "";
+    });
     picker.addEventListener("value-changed", (ev) => {
       ev.stopPropagation();
       this._onChanged(path, ev.detail.value);
@@ -526,16 +531,24 @@ class EvCarTileCardEditor extends HTMLElement {
   _imageSelectorRow(label, path) {
     const div = document.createElement("div");
     div.className = "row";
+    // ha-selector has no built-in label attribute; wrap it
+    const lbl = document.createElement("label");
+    lbl.className = "selector-label";
+    lbl.textContent = label;
     const sel = document.createElement("ha-selector");
-    sel.setAttribute("label", label);
-    sel.selector = { image: {} };
-    sel.value = this._get(path) || "";
-    if (this._hass) sel.hass = this._hass;
+    sel.selector = { text: { type: "url" } };
+    sel.dataset.path = path;
+    customElements.whenDefined("ha-selector").then(() => {
+      sel.hass = this._hass;
+      sel.selector = { image: {} };
+      sel.value = this._get(path) || "";
+    });
     sel.addEventListener("value-changed", (ev) => {
       ev.stopPropagation();
       this._onChanged(path, ev.detail.value ?? "");
     });
-    div.appendChild(sel);
+    lbl.appendChild(sel);
+    div.appendChild(lbl);
     return div;
   }
 
@@ -604,6 +617,8 @@ class EvCarTileCardEditor extends HTMLElement {
         .row ha-entity-picker,
         .row ha-textfield,
         .row ha-selector { display: block; width: 100%; }
+        .selector-label { display: block; font-size: 12px; color: var(--secondary-text-color); margin-bottom: 2px; }
+        .selector-label ha-selector { display: block; }
         ha-formfield { display: block; padding: 6px 0; }
       </style>
     `;
