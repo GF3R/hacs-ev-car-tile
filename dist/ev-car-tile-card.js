@@ -230,13 +230,8 @@ class EvCarTileCard extends HTMLElement {
           border-radius: 12px;
           padding: 8px;
           background:
-            radial-gradient(circle at 55% 130%, rgba(var(--rgb-primary-color), 0.12) 0%, transparent 48%),
-            linear-gradient(
-              180deg,
-              rgba(var(--rgb-primary-color), 0.06) 0%,
-              rgba(var(--rgb-primary-text-color), 0.03) 100%
-            ),
-            var(--ha-card-background, var(--card-background-color));
+          radial-gradient(circle at 55% 130%, #e4e8ec 0%, transparent 48%),
+          linear-gradient(180deg, #f4f8fc 0%, #f6f3ee 100%);
         }
 
         .ev-car-zone {
