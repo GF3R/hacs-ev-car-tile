@@ -472,14 +472,12 @@ class EvCarTileCardEditor extends HTMLElement {
     super();
     this._config = null;
     this._hass = null;
-    this._bound = false;
   }
 
   set hass(hass) {
     this._hass = hass;
-    this.querySelectorAll("ha-entity-picker, ha-selector").forEach((el) => {
-      el.hass = hass;
-    });
+    // Push updated hass to all ha-form instances
+    this.querySelectorAll("ha-form").forEach((f) => { f.hass = hass; });
   }
 
   setConfig(config) {
@@ -487,198 +485,147 @@ class EvCarTileCardEditor extends HTMLElement {
     this._render();
   }
 
-  _onChanged(path, value) {
-    const cfg = structuredClone(this._config || EvCarTileCard.getStubConfig());
-    const keys = path.split(".");
-    let ptr = cfg;
-    while (keys.length > 1) {
-      const k = keys.shift();
-      ptr[k] = ptr[k] || {};
-      ptr = ptr[k];
-    }
-    ptr[keys[0]] = value;
-    this._config = cfg;
-    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: cfg } }));
+  _fire(config) {
+    this._config = config;
+    this.dispatchEvent(
+      new CustomEvent("config-changed", {
+        detail: { config },
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
-  _get(path) {
-    const c = this._config || EvCarTileCard.getStubConfig();
-    return path.split(".").reduce((o, k) => (o != null && o[k] !== undefined ? o[k] : ""), c);
-  }
-
-  _entityPickerRow(label, path) {
-    const div = document.createElement("div");
-    div.className = "row";
-    const picker = document.createElement("ha-entity-picker");
-    picker.setAttribute("label", label);
-    picker.setAttribute("allow-custom-entity", "");
-    picker.dataset.path = path;
-    // hass must be set before value so the picker can resolve entity names
-    if (this._hass) picker.hass = this._hass;
-    // Defer value assignment until the element is upgraded
-    customElements.whenDefined("ha-entity-picker").then(() => {
-      picker.hass = this._hass;
-      picker.value = this._get(path) || "";
-    });
-    picker.addEventListener("value-changed", (ev) => {
+  _buildForm(schema, data, onChanged) {
+    const form = document.createElement("ha-form");
+    form.hass = this._hass;
+    form.schema = schema;
+    form.data = data;
+    form.computeLabel = (s) => s.label ?? s.name;
+    form.addEventListener("value-changed", (ev) => {
       ev.stopPropagation();
-      this._onChanged(path, ev.detail.value);
+      onChanged(ev.detail.value);
     });
-    div.appendChild(picker);
-    return div;
+    return form;
   }
 
-  _imageSelectorRow(label, path) {
-    const div = document.createElement("div");
-    div.className = "row";
-    // ha-selector has no built-in label attribute; wrap it
-    const lbl = document.createElement("label");
-    lbl.className = "selector-label";
-    lbl.textContent = label;
-    const sel = document.createElement("ha-selector");
-    sel.selector = { text: { type: "url" } };
-    sel.dataset.path = path;
-    customElements.whenDefined("ha-selector").then(() => {
-      sel.hass = this._hass;
-      sel.selector = { image: {} };
-      sel.value = this._get(path) || "";
-    });
-    sel.addEventListener("value-changed", (ev) => {
-      ev.stopPropagation();
-      this._onChanged(path, ev.detail.value ?? "");
-    });
-    lbl.appendChild(sel);
-    div.appendChild(lbl);
-    return div;
-  }
-
-  _textRow(label, path, type = "text") {
-    const div = document.createElement("div");
-    div.className = "row";
-    const tf = document.createElement("ha-textfield");
-    tf.setAttribute("label", label);
-    tf.setAttribute("type", type);
-    tf.dataset.path = path;
-    tf.value = String(this._get(path) ?? "");
-    tf.addEventListener("change", () => {
-      const raw = tf.value;
-      if (type === "number") {
-        const num = Number(raw);
-        this._onChanged(path, Number.isFinite(num) ? num : raw);
-      } else {
-        this._onChanged(path, raw);
-      }
-    });
-    div.appendChild(tf);
-    return div;
-  }
-
-  _switchRow(label, path) {
-    const div = document.createElement("div");
-    div.className = "row";
-    const ff = document.createElement("ha-formfield");
-    ff.setAttribute("label", label);
-    const sw = document.createElement("ha-switch");
-    sw.checked = Boolean(this._get(path));
-    sw.addEventListener("change", () => {
-      this._onChanged(path, sw.checked);
-    });
-    ff.appendChild(sw);
-    div.appendChild(ff);
-    return div;
-  }
-
-  _sectionTitle(text) {
-    const h = document.createElement("div");
-    h.className = "section-title";
-    h.textContent = text;
-    return h;
+  _section(title) {
+    const el = document.createElement("div");
+    el.className = "section-title";
+    el.textContent = title;
+    return el;
   }
 
   _render() {
     const c = this._config || EvCarTileCard.getStubConfig();
+    const e = c.entities || {};
     const o = c.options || {};
+    const imgs = o.images || {};
     const l = o.layout || {};
 
-    this.innerHTML = `
-      <style>
-        :host { display: block; }
-        .section-title {
-          font-size: 13px;
-          font-weight: 600;
-          color: var(--primary-text-color);
-          margin: 20px 0 8px;
-          padding-bottom: 4px;
-          border-bottom: 1px solid var(--divider-color, #e0e0e0);
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
-        }
-        .row { margin-bottom: 8px; }
-        .row ha-entity-picker,
-        .row ha-textfield,
-        .row ha-selector { display: block; width: 100%; }
-        .selector-label { display: block; font-size: 12px; color: var(--secondary-text-color); margin-bottom: 2px; }
-        .selector-label ha-selector { display: block; }
-        ha-formfield { display: block; padding: 6px 0; }
-      </style>
-    `;
+    this.innerHTML = `<style>
+      :host { display: block; }
+      ha-form { display: block; margin-bottom: 8px; }
+      .section-title {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--secondary-text-color);
+        padding: 16px 0 4px;
+        border-bottom: 1px solid var(--divider-color, rgba(0,0,0,.12));
+        margin-bottom: 8px;
+      }
+    </style>`;
 
-    const append = (el) => this.appendChild(el);
+    const app = (el) => this.appendChild(el);
 
-    // Card name
-    append(this._sectionTitle("Card"));
-    append(this._textRow("Card Name", "name"));
+    // ── Card ──────────────────────────────────────────────────────────────────
+    app(this._section("Card"));
+    app(this._buildForm(
+      [{ name: "name", label: "Card Name", selector: { text: {} } }],
+      { name: c.name ?? "" },
+      (val) => this._fire({ ...c, ...val })
+    ));
 
-    // Entities
-    append(this._sectionTitle("Entities"));
-    append(this._entityPickerRow("Power (kW sensor)", "entities.power"));
-    append(this._entityPickerRow("Charge (%)", "entities.charge"));
-    append(this._entityPickerRow("Target (%)", "entities.target"));
-    append(this._entityPickerRow("Range (km)", "entities.range"));
-    append(this._entityPickerRow("Charging (binary sensor)", "entities.charging"));
-    append(this._entityPickerRow("Home / Zone", "entities.home"));
-    append(this._entityPickerRow("Windows Closed (binary sensor)", "entities.windows_closed"));
-    append(this._entityPickerRow("Doors Closed (binary sensor)", "entities.doors_closed"));
-    append(this._entityPickerRow("Climate On (binary sensor)", "entities.climate_on"));
-    append(this._entityPickerRow("Climate Temperature", "entities.climate_temp"));
+    // ── Entities ──────────────────────────────────────────────────────────────
+    app(this._section("Entities"));
+    app(this._buildForm(
+      [
+        { name: "power",          label: "Power (kW sensor)",           selector: { entity: {} } },
+        { name: "charge",         label: "Charge (%)",                   selector: { entity: {} } },
+        { name: "target",         label: "Target charge (%)",            selector: { entity: {} } },
+        { name: "range",          label: "Range (km)",                   selector: { entity: {} } },
+        { name: "charging",       label: "Charging (binary_sensor)",     selector: { entity: {} } },
+        { name: "home",           label: "Home / Zone",                  selector: { entity: {} } },
+        { name: "windows_closed", label: "Windows open (binary_sensor)", selector: { entity: {} } },
+        { name: "doors_closed",   label: "Doors open (binary_sensor)",   selector: { entity: {} } },
+        { name: "climate_on",     label: "Climate on (binary_sensor)",   selector: { entity: {} } },
+        { name: "climate_temp",   label: "Climate temperature",          selector: { entity: {} } },
+      ],
+      { ...e },
+      (val) => this._fire({ ...c, entities: { ...e, ...val } })
+    ));
 
-    // Options
-    append(this._sectionTitle("Options"));
-    append(this._textRow("Battery Capacity (kWh)", "options.battery_capacity_kwh", "number"));
-    append(this._textRow("Asset Base Path", "options.asset_base_path"));
-    append(this._switchRow("Show ETA When Not Charging", "options.show_eta_when_not_charging"));
+    // ── Options ───────────────────────────────────────────────────────────────
+    app(this._section("Options"));
+    app(this._buildForm(
+      [
+        { name: "battery_capacity_kwh",       label: "Battery Capacity (kWh)",       selector: { number: { min: 1, max: 300, step: 0.1, mode: "box" } } },
+        { name: "asset_base_path",            label: "Asset Base Path",              selector: { text: {} } },
+        { name: "show_eta_when_not_charging", label: "Show ETA When Not Charging",   selector: { boolean: {} } },
+      ],
+      {
+        battery_capacity_kwh:       o.battery_capacity_kwh ?? 77,
+        asset_base_path:            o.asset_base_path ?? "",
+        show_eta_when_not_charging: o.show_eta_when_not_charging ?? false,
+      },
+      (val) => this._fire({ ...c, options: { ...o, ...val } })
+    ));
 
-    // Image overrides
-    append(this._sectionTitle("Image Overrides"));
-    append(this._imageSelectorRow("Home — Charging", "options.images.home_charging"));
-    append(this._imageSelectorRow("Home — Not Charging", "options.images.home_not_charging"));
-    append(this._imageSelectorRow("Away — Charging", "options.images.away_charging"));
-    append(this._imageSelectorRow("Away — Driving", "options.images.away_driving"));
-    append(this._imageSelectorRow("Warning: Window Open Icon", "options.images.warning_window"));
-    append(this._imageSelectorRow("Warning: Door Open Icon", "options.images.warning_door"));
+    // ── Image Overrides ───────────────────────────────────────────────────────
+    app(this._section("Image Overrides"));
+    app(this._buildForm(
+      [
+        { name: "home_charging",     label: "Home — Charging",          selector: { image: {} } },
+        { name: "home_not_charging", label: "Home — Not Charging",       selector: { image: {} } },
+        { name: "away_charging",     label: "Away — Charging",           selector: { image: {} } },
+        { name: "away_driving",      label: "Away — Driving",            selector: { image: {} } },
+        { name: "warning_window",    label: "Warning: Window Open Icon", selector: { image: {} } },
+        { name: "warning_door",      label: "Warning: Door Open Icon",   selector: { image: {} } },
+      ],
+      { ...imgs },
+      (val) => this._fire({ ...c, options: { ...o, images: { ...imgs, ...val } } })
+    ));
 
-    // Layout
-    append(this._sectionTitle("Layout"));
-    append(this._textRow("Visual Min Height", "options.layout.visual_min_height"));
-    append(this._textRow("Zone Height", "options.layout.zone_height"));
-    append(this._textRow("Car Image Left", "options.layout.car_image_left"));
-    append(this._textRow("Car Image Top", "options.layout.car_image_top"));
-    append(this._textRow("Car Image Width", "options.layout.car_image_width"));
-    append(this._textRow("Car Image Height", "options.layout.car_image_height"));
-    append(this._textRow("Car Image Object Position", "options.layout.car_image_object_position"));
-    append(this._textRow("Car Image Scale", "options.layout.car_image_scale", "number"));
-    append(this._textRow("Climate Badge Left", "options.layout.climate_badge_left"));
-    append(this._textRow("Climate Badge Top", "options.layout.climate_badge_top"));
-    append(this._textRow("Climate Badge Transform", "options.layout.climate_badge_transform"));
-    append(this._textRow("Power Chip Left", "options.layout.power_chip_left"));
-    append(this._textRow("Power Chip Bottom", "options.layout.power_chip_bottom"));
-    append(this._textRow("Warning Right", "options.layout.warning_right"));
-    append(this._textRow("Warning Top", "options.layout.warning_top"));
-    append(this._textRow("Battery Left", "options.layout.battery_left"));
-    append(this._textRow("Battery Bottom", "options.layout.battery_bottom"));
-    append(this._textRow("Battery Width", "options.layout.battery_width"));
-    append(this._textRow("Overlay Left", "options.layout.car_overlay_left"));
-    append(this._textRow("Overlay Top", "options.layout.car_overlay_top"));
+    // ── Layout ────────────────────────────────────────────────────────────────
+    app(this._section("Layout"));
+    app(this._buildForm(
+      [
+        { name: "visual_min_height",        label: "Visual Min Height",        selector: { text: {} } },
+        { name: "zone_height",              label: "Zone Height",              selector: { text: {} } },
+        { name: "car_image_left",           label: "Car Image Left",           selector: { text: {} } },
+        { name: "car_image_top",            label: "Car Image Top",            selector: { text: {} } },
+        { name: "car_image_width",          label: "Car Image Width",          selector: { text: {} } },
+        { name: "car_image_height",         label: "Car Image Height",         selector: { text: {} } },
+        { name: "car_image_object_position",label: "Car Image Object Position", selector: { text: {} } },
+        { name: "car_image_scale",          label: "Car Image Scale",          selector: { number: { min: 0.1, max: 3, step: 0.01, mode: "box" } } },
+        { name: "climate_badge_left",       label: "Climate Badge Left",       selector: { text: {} } },
+        { name: "climate_badge_top",        label: "Climate Badge Top",        selector: { text: {} } },
+        { name: "climate_badge_transform",  label: "Climate Badge Transform",  selector: { text: {} } },
+        { name: "power_chip_left",          label: "Power Chip Left",          selector: { text: {} } },
+        { name: "power_chip_bottom",        label: "Power Chip Bottom",        selector: { text: {} } },
+        { name: "warning_right",            label: "Warning Right",            selector: { text: {} } },
+        { name: "warning_top",              label: "Warning Top",              selector: { text: {} } },
+        { name: "battery_left",             label: "Battery Left",             selector: { text: {} } },
+        { name: "battery_bottom",           label: "Battery Bottom",           selector: { text: {} } },
+        { name: "battery_width",            label: "Battery Width",            selector: { text: {} } },
+        { name: "car_overlay_left",         label: "Overlay Left",             selector: { text: {} } },
+        { name: "car_overlay_top",          label: "Overlay Top",              selector: { text: {} } },
+      ],
+      { ...l },
+      (val) => this._fire({ ...c, options: { ...o, layout: { ...l, ...val } } })
+    ));
   }
 }
 
