@@ -357,7 +357,7 @@ class EvCarTileCard extends HTMLElement {
           border-radius: 16px;
           overflow: hidden;
           padding: 12px;
-          background: linear-gradient(160deg, #ffffff 0%, #f8f6f1 100%);
+          background: var(--ha-card-background, var(--card-background-color));
         }
 
         .ev-visual {
@@ -365,8 +365,13 @@ class EvCarTileCard extends HTMLElement {
           border-radius: 12px;
           padding: 8px;
           background:
-            radial-gradient(circle at 55% 130%, #e4e8ec 0%, transparent 48%),
-            linear-gradient(180deg, #f4f8fc 0%, #f6f3ee 100%);
+            radial-gradient(circle at 55% 130%, rgba(var(--rgb-primary-color), 0.12) 0%, transparent 48%),
+            linear-gradient(
+              180deg,
+              rgba(var(--rgb-primary-color), 0.06) 0%,
+              rgba(var(--rgb-primary-text-color), 0.03) 100%
+            ),
+            var(--ha-card-background, var(--card-background-color));
         }
 
         .ev-car-zone {
@@ -715,12 +720,12 @@ class EvCarTileCardEditor extends HTMLElement {
     app(this._section("Image Overrides"));
     app(this._buildForm(
       [
-        { name: "home_charging",     label: "Home — Charging",          selector: { image: {} } },
-        { name: "home_not_charging", label: "Home — Not Charging",       selector: { image: {} } },
-        { name: "away_charging",     label: "Away — Charging",           selector: { image: {} } },
-        { name: "away_driving",      label: "Away — Driving",            selector: { image: {} } },
-        { name: "warning_window",    label: "Warning: Window Open Icon", selector: { image: {} } },
-        { name: "warning_door",      label: "Warning: Door Open Icon",   selector: { image: {} } },
+        { name: "home_charging",     label: "Home — Charging",          selector: { text: {} } },
+        { name: "home_not_charging", label: "Home — Not Charging",       selector: { text: {} } },
+        { name: "away_charging",     label: "Away — Charging",           selector: { text: {} } },
+        { name: "away_driving",      label: "Away — Driving",            selector: { text: {} } },
+        { name: "warning_window",    label: "Warning: Window Open Icon", selector: { text: {} } },
+        { name: "warning_door",      label: "Warning: Door Open Icon",   selector: { text: {} } },
       ],
       { ...imgs },
       (val) => this._fire({ ...c, options: { ...o, images: { ...imgs, ...val as Partial<EvCarImages> } } })
