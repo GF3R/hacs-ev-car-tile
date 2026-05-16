@@ -468,6 +468,20 @@ class EvCarTileCard extends HTMLElement {
 }
 
 class EvCarTileCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this._config = null;
+    this._hass = null;
+    this._bound = false;
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this.querySelectorAll("ha-entity-picker, ha-selector").forEach((el) => {
+      el.hass = hass;
+    });
+  }
+
   setConfig(config) {
     this._config = config;
     this._render();
@@ -483,98 +497,173 @@ class EvCarTileCardEditor extends HTMLElement {
       ptr = ptr[k];
     }
     ptr[keys[0]] = value;
+    this._config = cfg;
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: cfg } }));
   }
 
-  _field(label, path, value = "") {
-    return `
-      <label>
-        <span>${label}</span>
-        <input data-path="${path}" value="${String(value ?? "")}" />
-      </label>
-    `;
+  _get(path) {
+    const c = this._config || EvCarTileCard.getStubConfig();
+    return path.split(".").reduce((o, k) => (o != null && o[k] !== undefined ? o[k] : ""), c);
+  }
+
+  _entityPickerRow(label, path) {
+    const div = document.createElement("div");
+    div.className = "row";
+    const picker = document.createElement("ha-entity-picker");
+    picker.setAttribute("label", label);
+    picker.setAttribute("allow-custom-entity", "");
+    picker.dataset.path = path;
+    if (this._hass) picker.hass = this._hass;
+    picker.value = this._get(path) || "";
+    picker.addEventListener("value-changed", (ev) => {
+      ev.stopPropagation();
+      this._onChanged(path, ev.detail.value);
+    });
+    div.appendChild(picker);
+    return div;
+  }
+
+  _imageSelectorRow(label, path) {
+    const div = document.createElement("div");
+    div.className = "row";
+    const sel = document.createElement("ha-selector");
+    sel.setAttribute("label", label);
+    sel.selector = { image: {} };
+    sel.value = this._get(path) || "";
+    if (this._hass) sel.hass = this._hass;
+    sel.addEventListener("value-changed", (ev) => {
+      ev.stopPropagation();
+      this._onChanged(path, ev.detail.value ?? "");
+    });
+    div.appendChild(sel);
+    return div;
+  }
+
+  _textRow(label, path, type = "text") {
+    const div = document.createElement("div");
+    div.className = "row";
+    const tf = document.createElement("ha-textfield");
+    tf.setAttribute("label", label);
+    tf.setAttribute("type", type);
+    tf.dataset.path = path;
+    tf.value = String(this._get(path) ?? "");
+    tf.addEventListener("change", () => {
+      const raw = tf.value;
+      if (type === "number") {
+        const num = Number(raw);
+        this._onChanged(path, Number.isFinite(num) ? num : raw);
+      } else {
+        this._onChanged(path, raw);
+      }
+    });
+    div.appendChild(tf);
+    return div;
+  }
+
+  _switchRow(label, path) {
+    const div = document.createElement("div");
+    div.className = "row";
+    const ff = document.createElement("ha-formfield");
+    ff.setAttribute("label", label);
+    const sw = document.createElement("ha-switch");
+    sw.checked = Boolean(this._get(path));
+    sw.addEventListener("change", () => {
+      this._onChanged(path, sw.checked);
+    });
+    ff.appendChild(sw);
+    div.appendChild(ff);
+    return div;
+  }
+
+  _sectionTitle(text) {
+    const h = document.createElement("div");
+    h.className = "section-title";
+    h.textContent = text;
+    return h;
   }
 
   _render() {
     const c = this._config || EvCarTileCard.getStubConfig();
-    const e = c.entities || {};
     const o = c.options || {};
     const l = o.layout || {};
-    const i = o.images || {};
-    
+
     this.innerHTML = `
       <style>
-        .grid { display: grid; gap: 8px; }
-        label { display: grid; gap: 4px; font-size: 12px; }
-        input { padding: 8px; }
-        h4 { margin: 8px 0 0; }
+        :host { display: block; }
+        .section-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--primary-text-color);
+          margin: 20px 0 8px;
+          padding-bottom: 4px;
+          border-bottom: 1px solid var(--divider-color, #e0e0e0);
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+        }
+        .row { margin-bottom: 8px; }
+        .row ha-entity-picker,
+        .row ha-textfield,
+        .row ha-selector { display: block; width: 100%; }
+        ha-formfield { display: block; padding: 6px 0; }
       </style>
-      <div class="grid">
-        ${this._field("Card Name", "name", c.name || "")}
-        
-        <h4>Entities</h4>
-        ${this._field("Power", "entities.power", e.power)}
-        ${this._field("Charge", "entities.charge", e.charge)}
-        ${this._field("Target", "entities.target", e.target)}
-        ${this._field("Range", "entities.range", e.range)}
-        ${this._field("Charging", "entities.charging", e.charging)}
-        ${this._field("Home", "entities.home", e.home)}
-        ${this._field("Windows Closed", "entities.windows_closed", e.windows_closed)}
-        ${this._field("Doors Closed", "entities.doors_closed", e.doors_closed)}
-        ${this._field("Climate On", "entities.climate_on", e.climate_on)}
-        ${this._field("Climate Temp", "entities.climate_temp", e.climate_temp)}
-
-        <h4>Options</h4>
-        ${this._field("Battery Capacity (kWh)", "options.battery_capacity_kwh", o.battery_capacity_kwh ?? 77)}
-        ${this._field("Asset Base Path", "options.asset_base_path", o.asset_base_path ?? "")}
-        ${this._field("Show ETA When Not Charging (true/false)", "options.show_eta_when_not_charging", o.show_eta_when_not_charging ?? false)}
-
-        <h4>Image Overrides</h4>
-        ${this._field("Home Charging Image", "options.images.home_charging", i.home_charging)}
-        ${this._field("Home Not Charging Image", "options.images.home_not_charging", i.home_not_charging)}
-        ${this._field("Away Charging Image", "options.images.away_charging", i.away_charging)}
-        ${this._field("Away Driving Image", "options.images.away_driving", i.away_driving)}
-        ${this._field("Warning Window Icon", "options.images.warning_window", i.warning_window)}
-        ${this._field("Warning Door Icon", "options.images.warning_door", i.warning_door)}
-
-        <h4>Layout</h4>
-        ${this._field("Visual Min Height", "options.layout.visual_min_height", l.visual_min_height ?? "220px")}
-        ${this._field("Zone Height", "options.layout.zone_height", l.zone_height ?? "200px")}
-        ${this._field("Car Image Left", "options.layout.car_image_left", l.car_image_left ?? "0")}
-        ${this._field("Car Image Top", "options.layout.car_image_top", l.car_image_top ?? "0")}
-        ${this._field("Car Image Width", "options.layout.car_image_width", l.car_image_width ?? "100%")}
-        ${this._field("Car Image Height", "options.layout.car_image_height", l.car_image_height ?? "100%")}
-        ${this._field("Car Image Object Position", "options.layout.car_image_object_position", l.car_image_object_position ?? "44% bottom")}
-        ${this._field("Car Image Scale", "options.layout.car_image_scale", l.car_image_scale ?? 1.08)}
-        ${this._field("Climate Badge Left", "options.layout.climate_badge_left", l.climate_badge_left ?? "50%")}
-        ${this._field("Climate Badge Top", "options.layout.climate_badge_top", l.climate_badge_top ?? "2px")}
-        ${this._field("Climate Badge Transform", "options.layout.climate_badge_transform", l.climate_badge_transform ?? "translateX(-50%)")}
-        ${this._field("Power Chip Left", "options.layout.power_chip_left", l.power_chip_left ?? "10%")}
-        ${this._field("Power Chip Bottom", "options.layout.power_chip_bottom", l.power_chip_bottom ?? "84px")}
-        ${this._field("Warning Right", "options.layout.warning_right", l.warning_right ?? "2px")}
-        ${this._field("Warning Top", "options.layout.warning_top", l.warning_top ?? "2px")}
-        ${this._field("Battery Left", "options.layout.battery_left", l.battery_left ?? "82%")}
-        ${this._field("Battery Bottom", "options.layout.battery_bottom", l.battery_bottom ?? "40px")}
-        ${this._field("Battery Width", "options.layout.battery_width", l.battery_width ?? "30px")}
-        ${this._field("Overlay Left", "options.layout.car_overlay_left", l.car_overlay_left ?? "6px")}
-        ${this._field("Overlay Top", "options.layout.car_overlay_top", l.car_overlay_top ?? "4px")}
-      </div>
     `;
 
-    this.querySelectorAll("input").forEach((el) => {
-      el.addEventListener("change", () => {
-        const path = el.dataset.path;
-        const raw = el.value;
-        const lower = raw.trim().toLowerCase();
-        if (lower === "true" || lower === "false") {
-          this._onChanged(path, lower === "true");
-          return;
-        }
-        const num = Number(raw);
-        const value = Number.isFinite(num) && raw.trim() !== "" ? num : raw;
-        this._onChanged(path, value);
-      });
-    });
+    const append = (el) => this.appendChild(el);
+
+    // Card name
+    append(this._sectionTitle("Card"));
+    append(this._textRow("Card Name", "name"));
+
+    // Entities
+    append(this._sectionTitle("Entities"));
+    append(this._entityPickerRow("Power (kW sensor)", "entities.power"));
+    append(this._entityPickerRow("Charge (%)", "entities.charge"));
+    append(this._entityPickerRow("Target (%)", "entities.target"));
+    append(this._entityPickerRow("Range (km)", "entities.range"));
+    append(this._entityPickerRow("Charging (binary sensor)", "entities.charging"));
+    append(this._entityPickerRow("Home / Zone", "entities.home"));
+    append(this._entityPickerRow("Windows Closed (binary sensor)", "entities.windows_closed"));
+    append(this._entityPickerRow("Doors Closed (binary sensor)", "entities.doors_closed"));
+    append(this._entityPickerRow("Climate On (binary sensor)", "entities.climate_on"));
+    append(this._entityPickerRow("Climate Temperature", "entities.climate_temp"));
+
+    // Options
+    append(this._sectionTitle("Options"));
+    append(this._textRow("Battery Capacity (kWh)", "options.battery_capacity_kwh", "number"));
+    append(this._textRow("Asset Base Path", "options.asset_base_path"));
+    append(this._switchRow("Show ETA When Not Charging", "options.show_eta_when_not_charging"));
+
+    // Image overrides
+    append(this._sectionTitle("Image Overrides"));
+    append(this._imageSelectorRow("Home — Charging", "options.images.home_charging"));
+    append(this._imageSelectorRow("Home — Not Charging", "options.images.home_not_charging"));
+    append(this._imageSelectorRow("Away — Charging", "options.images.away_charging"));
+    append(this._imageSelectorRow("Away — Driving", "options.images.away_driving"));
+    append(this._imageSelectorRow("Warning: Window Open Icon", "options.images.warning_window"));
+    append(this._imageSelectorRow("Warning: Door Open Icon", "options.images.warning_door"));
+
+    // Layout
+    append(this._sectionTitle("Layout"));
+    append(this._textRow("Visual Min Height", "options.layout.visual_min_height"));
+    append(this._textRow("Zone Height", "options.layout.zone_height"));
+    append(this._textRow("Car Image Left", "options.layout.car_image_left"));
+    append(this._textRow("Car Image Top", "options.layout.car_image_top"));
+    append(this._textRow("Car Image Width", "options.layout.car_image_width"));
+    append(this._textRow("Car Image Height", "options.layout.car_image_height"));
+    append(this._textRow("Car Image Object Position", "options.layout.car_image_object_position"));
+    append(this._textRow("Car Image Scale", "options.layout.car_image_scale", "number"));
+    append(this._textRow("Climate Badge Left", "options.layout.climate_badge_left"));
+    append(this._textRow("Climate Badge Top", "options.layout.climate_badge_top"));
+    append(this._textRow("Climate Badge Transform", "options.layout.climate_badge_transform"));
+    append(this._textRow("Power Chip Left", "options.layout.power_chip_left"));
+    append(this._textRow("Power Chip Bottom", "options.layout.power_chip_bottom"));
+    append(this._textRow("Warning Right", "options.layout.warning_right"));
+    append(this._textRow("Warning Top", "options.layout.warning_top"));
+    append(this._textRow("Battery Left", "options.layout.battery_left"));
+    append(this._textRow("Battery Bottom", "options.layout.battery_bottom"));
+    append(this._textRow("Battery Width", "options.layout.battery_width"));
+    append(this._textRow("Overlay Left", "options.layout.car_overlay_left"));
+    append(this._textRow("Overlay Top", "options.layout.car_overlay_top"));
   }
 }
 
