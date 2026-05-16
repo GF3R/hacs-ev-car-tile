@@ -415,8 +415,10 @@ class EvCarTileCard extends HTMLElement {
           padding: 2px 8px;
           border-radius: 999px;
           font-size: 12px;
-          background: rgba(255,255,255,0.92);
-          border: 1px solid rgba(48,56,64,0.24);
+          background: var(--card-background-color, #fff);
+          border: 1px solid var(--divider-color, rgba(48,56,64,0.24));
+          color: var(--primary-text-color);
+          font-weight: 600;
         }
 
         .power-chip {
