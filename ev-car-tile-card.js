@@ -232,8 +232,8 @@ class EvCarTileCard extends HTMLElement {
         ? this._imageOverride("away_charging", "away_charging_transparent.png")
         : this._imageOverride("away_driving", "away_driving_transparent.png");
 
-    const warningWindowImage = this._imageOverride("warning_window", "noun-car-window-507628.svg");
-    const warningDoorImage = this._imageOverride("warning_door", "noun-car-6500993.svg");
+    const warningWindowImage = this._imageOverride("warning_window", "noun-car-window.svg");
+    const warningDoorImage = this._imageOverride("warning_door", "noun-car.svg");
 
     const remPercent = Math.max(0, target - current);
     const cap = Number(o.battery_capacity_kwh || 77);
@@ -468,328 +468,111 @@ class EvCarTileCard extends HTMLElement {
 }
 
 class EvCarTileCardEditor extends HTMLElement {
-  constructor() {
-    super();
-    this._config = null;
-    this._hass = null;
-  }
-
   setConfig(config) {
-    const defaultConfig = EvCarTileCard.getStubConfig();
-
-    this._config = {
-      ...defaultConfig,
-      ...(config || {}),
-      entities: {
-        ...defaultConfig.entities,
-        ...((config || {}).entities || {})
-      },
-      options: {
-        ...defaultConfig.options,
-        ...((config || {}).options || {}),
-        images: {
-          ...defaultConfig.options.images,
-          ...((config || {}).options?.images || {})
-        },
-        layout: {
-          ...defaultConfig.options.layout,
-          ...((config || {}).options?.layout || {})
-        }
-      }
-    };
-
+    this._config = config;
     this._render();
   }
 
-  set hass(hass) {
-    this._hass = hass;
-    this._render();
-  }
-
-  _getValue(path, fallback = "") {
-    const keys = path.split(".");
-    let ptr = this._config || {};
-
-    for (const key of keys) {
-      ptr = ptr?.[key];
-    }
-
-    return ptr ?? fallback;
-  }
-
-  _setValue(path, value) {
-    const defaultConfig = EvCarTileCard.getStubConfig();
-
-    const cfg = {
-      ...defaultConfig,
-      ...(this._config || {}),
-      entities: {
-        ...defaultConfig.entities,
-        ...((this._config || {}).entities || {})
-      },
-      options: {
-        ...defaultConfig.options,
-        ...((this._config || {}).options || {}),
-        images: {
-          ...defaultConfig.options.images,
-          ...((this._config || {}).options?.images || {})
-        },
-        layout: {
-          ...defaultConfig.options.layout,
-          ...((this._config || {}).options?.layout || {})
-        }
-      }
-    };
-
+  _onChanged(path, value) {
+    const cfg = structuredClone(this._config || EvCarTileCard.getStubConfig());
     const keys = path.split(".");
     let ptr = cfg;
-
     while (keys.length > 1) {
-      const key = keys.shift();
-      ptr[key] = ptr[key] || {};
-      ptr = ptr[key];
+      const k = keys.shift();
+      ptr[k] = ptr[k] || {};
+      ptr = ptr[k];
     }
-
     ptr[keys[0]] = value;
-    this._config = cfg;
-
-    this.dispatchEvent(
-      new CustomEvent("config-changed", {
-        detail: { config: cfg },
-        bubbles: true,
-        composed: true
-      })
-    );
-
-    this._render();
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: cfg } }));
   }
 
-  _entityPicker(label, path, domainFilter = "") {
-    const value = this._getValue(path, "");
-
+  _field(label, path, value = "") {
     return `
-      <div class="field">
-        <label>${label}</label>
-        <ha-entity-picker
-          data-path="${path}"
-          value="${String(value ?? "")}"
-          allow-custom-entity
-          ${domainFilter ? `domain-filter="${domainFilter}"` : ""}
-        ></ha-entity-picker>
-      </div>
-    `;
-  }
-
-  _textField(label, path, fallback = "") {
-    const value = this._getValue(path, fallback);
-
-    return `
-      <div class="field">
-        <label>${label}</label>
-        <ha-textfield
-          data-path="${path}"
-          value="${String(value ?? "")}"
-        ></ha-textfield>
-      </div>
-    `;
-  }
-
-  _numberField(label, path, fallback = 0) {
-    const value = this._getValue(path, fallback);
-
-    return `
-      <div class="field">
-        <label>${label}</label>
-        <ha-textfield
-          data-path="${path}"
-          type="number"
-          value="${String(value ?? "")}"
-        ></ha-textfield>
-      </div>
-    `;
-  }
-
-  _switchField(label, path, fallback = false) {
-    const value = Boolean(this._getValue(path, fallback));
-
-    return `
-      <div class="switch-field">
-        <ha-switch
-          data-path="${path}"
-          ${value ? "checked" : ""}
-        ></ha-switch>
-        <label>${label}</label>
-      </div>
+      <label>
+        <span>${label}</span>
+        <input data-path="${path}" value="${String(value ?? "")}" />
+      </label>
     `;
   }
 
   _render() {
-    if (!this._config) {
-      return;
-    }
-
+    const c = this._config || EvCarTileCard.getStubConfig();
+    const e = c.entities || {};
+    const o = c.options || {};
+    const l = o.layout || {};
+    const i = o.images || {};
+    
     this.innerHTML = `
       <style>
-        .editor {
-          display: grid;
-          gap: 16px;
-        }
-
-        .section {
-          display: grid;
-          gap: 10px;
-          padding: 12px;
-          border: 1px solid var(--divider-color);
-          border-radius: 12px;
-        }
-
-        h3 {
-          margin: 0 0 4px;
-          font-size: 16px;
-          font-weight: 600;
-        }
-
-        .field {
-          display: grid;
-          gap: 4px;
-        }
-
-        label {
-          font-size: 12px;
-          color: var(--secondary-text-color);
-        }
-
-        ha-entity-picker,
-        ha-textfield {
-          width: 100%;
-        }
-
-        .switch-field {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .hint {
-          font-size: 12px;
-          color: var(--secondary-text-color);
-          line-height: 1.4;
-        }
+        .grid { display: grid; gap: 8px; }
+        label { display: grid; gap: 4px; font-size: 12px; }
+        input { padding: 8px; }
+        h4 { margin: 8px 0 0; }
       </style>
+      <div class="grid">
+        ${this._field("Card Name", "name", c.name || "")}
+        
+        <h4>Entities</h4>
+        ${this._field("Power", "entities.power", e.power)}
+        ${this._field("Charge", "entities.charge", e.charge)}
+        ${this._field("Target", "entities.target", e.target)}
+        ${this._field("Range", "entities.range", e.range)}
+        ${this._field("Charging", "entities.charging", e.charging)}
+        ${this._field("Home", "entities.home", e.home)}
+        ${this._field("Windows Closed", "entities.windows_closed", e.windows_closed)}
+        ${this._field("Doors Closed", "entities.doors_closed", e.doors_closed)}
+        ${this._field("Climate On", "entities.climate_on", e.climate_on)}
+        ${this._field("Climate Temp", "entities.climate_temp", e.climate_temp)}
 
-      <div class="editor">
-        <div class="section">
-          <h3>Card</h3>
-          ${this._textField("Card Name", "name", "EV")}
-        </div>
+        <h4>Options</h4>
+        ${this._field("Battery Capacity (kWh)", "options.battery_capacity_kwh", o.battery_capacity_kwh ?? 77)}
+        ${this._field("Asset Base Path", "options.asset_base_path", o.asset_base_path ?? "")}
+        ${this._field("Show ETA When Not Charging (true/false)", "options.show_eta_when_not_charging", o.show_eta_when_not_charging ?? false)}
 
-        <div class="section">
-          <h3>Entities</h3>
+        <h4>Image Overrides</h4>
+        ${this._field("Home Charging Image", "options.images.home_charging", i.home_charging)}
+        ${this._field("Home Not Charging Image", "options.images.home_not_charging", i.home_not_charging)}
+        ${this._field("Away Charging Image", "options.images.away_charging", i.away_charging)}
+        ${this._field("Away Driving Image", "options.images.away_driving", i.away_driving)}
+        ${this._field("Warning Window Icon", "options.images.warning_window", i.warning_window)}
+        ${this._field("Warning Door Icon", "options.images.warning_door", i.warning_door)}
 
-          ${this._entityPicker("Charging Power", "entities.power", "sensor")}
-          ${this._entityPicker("Battery Charge", "entities.charge", "sensor")}
-          ${this._entityPicker("Target Charge", "entities.target", "sensor")}
-          ${this._entityPicker("Range", "entities.range", "sensor")}
-
-          ${this._entityPicker("Charging", "entities.charging")}
-          ${this._entityPicker("Home", "entities.home")}
-          ${this._entityPicker("Windows Closed", "entities.windows_closed")}
-          ${this._entityPicker("Doors Closed", "entities.doors_closed")}
-          ${this._entityPicker("Climate On", "entities.climate_on")}
-          ${this._entityPicker("Climate Temperature", "entities.climate_temp", "sensor")}
-        </div>
-
-        <div class="section">
-          <h3>Options</h3>
-
-          ${this._numberField("Battery Capacity kWh", "options.battery_capacity_kwh", 77)}
-          ${this._switchField("Show ETA When Not Charging", "options.show_eta_when_not_charging", false)}
-          ${this._textField("Asset Base Path", "options.asset_base_path", "/hacsfiles/hacs-ev-car-tile/assets")}
-
-          <div class="hint">
-            Asset path should normally be: /hacsfiles/hacs-ev-car-tile/assets
-          </div>
-        </div>
-
-        <div class="section">
-          <h3>Image Overrides</h3>
-
-          ${this._textField("Home Charging Image", "options.images.home_charging")}
-          ${this._textField("Home Not Charging Image", "options.images.home_not_charging")}
-          ${this._textField("Away Charging Image", "options.images.away_charging")}
-          ${this._textField("Away Driving Image", "options.images.away_driving")}
-          ${this._textField("Warning Window Icon", "options.images.warning_window")}
-          ${this._textField("Warning Door Icon", "options.images.warning_door")}
-
-          <div class="hint">
-            Leave empty to use the built-in images. You can also enter a filename from the assets folder,
-            for example away_driving_transparent.png.
-          </div>
-        </div>
-
-        <div class="section">
-          <h3>Layout</h3>
-
-          ${this._textField("Visual Min Height", "options.layout.visual_min_height", "220px")}
-          ${this._textField("Zone Height", "options.layout.zone_height", "200px")}
-          ${this._textField("Car Image Left", "options.layout.car_image_left", "0")}
-          ${this._textField("Car Image Top", "options.layout.car_image_top", "0")}
-          ${this._textField("Car Image Width", "options.layout.car_image_width", "100%")}
-          ${this._textField("Car Image Height", "options.layout.car_image_height", "100%")}
-          ${this._textField("Car Image Object Position", "options.layout.car_image_object_position", "44% bottom")}
-          ${this._numberField("Car Image Scale", "options.layout.car_image_scale", 1.08)}
-
-          ${this._textField("Climate Badge Left", "options.layout.climate_badge_left", "50%")}
-          ${this._textField("Climate Badge Top", "options.layout.climate_badge_top", "2px")}
-          ${this._textField("Climate Badge Transform", "options.layout.climate_badge_transform", "translateX(-50%)")}
-
-          ${this._textField("Power Chip Left", "options.layout.power_chip_left", "10%")}
-          ${this._textField("Power Chip Bottom", "options.layout.power_chip_bottom", "84px")}
-
-          ${this._textField("Warning Right", "options.layout.warning_right", "2px")}
-          ${this._textField("Warning Top", "options.layout.warning_top", "2px")}
-
-          ${this._textField("Battery Left", "options.layout.battery_left", "82%")}
-          ${this._textField("Battery Bottom", "options.layout.battery_bottom", "40px")}
-          ${this._textField("Battery Width", "options.layout.battery_width", "30px")}
-
-          ${this._textField("Overlay Left", "options.layout.car_overlay_left", "6px")}
-          ${this._textField("Overlay Top", "options.layout.car_overlay_top", "4px")}
-        </div>
+        <h4>Layout</h4>
+        ${this._field("Visual Min Height", "options.layout.visual_min_height", l.visual_min_height ?? "220px")}
+        ${this._field("Zone Height", "options.layout.zone_height", l.zone_height ?? "200px")}
+        ${this._field("Car Image Left", "options.layout.car_image_left", l.car_image_left ?? "0")}
+        ${this._field("Car Image Top", "options.layout.car_image_top", l.car_image_top ?? "0")}
+        ${this._field("Car Image Width", "options.layout.car_image_width", l.car_image_width ?? "100%")}
+        ${this._field("Car Image Height", "options.layout.car_image_height", l.car_image_height ?? "100%")}
+        ${this._field("Car Image Object Position", "options.layout.car_image_object_position", l.car_image_object_position ?? "44% bottom")}
+        ${this._field("Car Image Scale", "options.layout.car_image_scale", l.car_image_scale ?? 1.08)}
+        ${this._field("Climate Badge Left", "options.layout.climate_badge_left", l.climate_badge_left ?? "50%")}
+        ${this._field("Climate Badge Top", "options.layout.climate_badge_top", l.climate_badge_top ?? "2px")}
+        ${this._field("Climate Badge Transform", "options.layout.climate_badge_transform", l.climate_badge_transform ?? "translateX(-50%)")}
+        ${this._field("Power Chip Left", "options.layout.power_chip_left", l.power_chip_left ?? "10%")}
+        ${this._field("Power Chip Bottom", "options.layout.power_chip_bottom", l.power_chip_bottom ?? "84px")}
+        ${this._field("Warning Right", "options.layout.warning_right", l.warning_right ?? "2px")}
+        ${this._field("Warning Top", "options.layout.warning_top", l.warning_top ?? "2px")}
+        ${this._field("Battery Left", "options.layout.battery_left", l.battery_left ?? "82%")}
+        ${this._field("Battery Bottom", "options.layout.battery_bottom", l.battery_bottom ?? "40px")}
+        ${this._field("Battery Width", "options.layout.battery_width", l.battery_width ?? "30px")}
+        ${this._field("Overlay Left", "options.layout.car_overlay_left", l.car_overlay_left ?? "6px")}
+        ${this._field("Overlay Top", "options.layout.car_overlay_top", l.car_overlay_top ?? "4px")}
       </div>
     `;
 
-    this.querySelectorAll("ha-entity-picker").forEach((el) => {
-      el.hass = this._hass;
-
-      el.addEventListener("value-changed", (ev) => {
-        this._setValue(el.dataset.path, ev.detail.value || "");
-      });
-
-      el.addEventListener("change", () => {
-        this._setValue(el.dataset.path, el.value || "");
-      });
-    });
-
-    this.querySelectorAll("ha-textfield").forEach((el) => {
+    this.querySelectorAll("input").forEach((el) => {
       el.addEventListener("change", () => {
         const path = el.dataset.path;
-        const raw = el.value ?? "";
-        const isNumber = el.getAttribute("type") === "number";
-
-        if (isNumber) {
-          const num = Number(raw);
-          this._setValue(path, Number.isFinite(num) && raw !== "" ? num : "");
+        const raw = el.value;
+        const lower = raw.trim().toLowerCase();
+        if (lower === "true" || lower === "false") {
+          this._onChanged(path, lower === "true");
           return;
         }
-
-        this._setValue(path, raw);
-      });
-    });
-
-    this.querySelectorAll("ha-switch").forEach((el) => {
-      el.addEventListener("change", () => {
-        this._setValue(el.dataset.path, Boolean(el.checked));
+        const num = Number(raw);
+        const value = Number.isFinite(num) && raw.trim() !== "" ? num : raw;
+        this._onChanged(path, value);
       });
     });
   }
