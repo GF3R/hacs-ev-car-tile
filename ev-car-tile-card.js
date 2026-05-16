@@ -42,7 +42,6 @@ class EvCarTileCard extends HTMLElement {
         show_eta_when_not_charging: false,
         asset_base_path: "/hacsfiles/hacs-ev-car-tile/assets"
       },
-      actions: {},
       ...config,
       entities: {
         power: "",
@@ -115,80 +114,6 @@ class EvCarTileCard extends HTMLElement {
       return this._hass.hassUrl(`/hacsfiles/hacs-ev-car-tile/assets/${name}`);
     }
     return new URL(`./assets/${name}`, import.meta.url).toString();
-  }
-
-  async _callConfiguredAction(key) {
-    if (!this._hass) {
-      return;
-    }
-    const action = this._config.actions?.[key];
-    if (!action?.service) {
-      return;
-    }
-
-    const service = String(action.service);
-    if (!service.includes(".")) {
-      return;
-    }
-
-    const [domain, svc] = service.split(".");
-    const data = { ...(action.data || {}) };
-
-    if (key === "set_climate") {
-      const current = this._num(this._config.entities.climate_temp, 21);
-      const prompted = window.prompt("Set climate temperature", String(current));
-      if (prompted === null) {
-        return;
-      }
-      const parsed = Number(prompted);
-      if (!Number.isFinite(parsed)) {
-        return;
-      }
-      data.temperature = parsed;
-    }
-
-    if (key === "set_target") {
-      const current = this._num(this._config.entities.target, 80);
-      const prompted = window.prompt("Set target charge (%)", String(current));
-      if (prompted === null) {
-        return;
-      }
-      const parsed = Number(prompted);
-      if (!Number.isFinite(parsed)) {
-        return;
-      }
-      const field = data.value_field || "value";
-      delete data.value_field;
-      data[field] = parsed;
-    }
-
-    await this._hass.callService(domain, svc, data);
-  }
-
-  _toggleChargingFallback() {
-    const ent = this._config.entities.charging;
-    if (ent && this._hass && typeof this._hass.callService === "function") {
-      this._hass.callService("homeassistant", "toggle", { entity_id: ent });
-    }
-  }
-
-  _bindActions(root) {
-    root.querySelector("#setClimateBtn")?.addEventListener("click", () => {
-      this._callConfiguredAction("set_climate");
-    });
-
-    root.querySelector("#setTargetBtn")?.addEventListener("click", () => {
-      this._callConfiguredAction("set_target");
-    });
-
-    root.querySelector("#toggleChargingBtn")?.addEventListener("click", () => {
-      const hasConfigured = Boolean(this._config.actions?.toggle_charging?.service);
-      if (hasConfigured) {
-        this._callConfiguredAction("toggle_charging");
-      } else {
-        this._toggleChargingFallback();
-      }
-    });
   }
 
   _render() {
@@ -362,20 +287,6 @@ class EvCarTileCard extends HTMLElement {
         }
         .name { margin: 0; font-size: 15px; }
         .range { margin: 2px 0 0; font-size: 12px; color: #5e5a50; }
-        .actions {
-          margin-top: 8px;
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 6px;
-        }
-        button {
-          border: 1px solid rgba(44,54,62,0.2);
-          border-radius: 10px;
-          padding: 7px;
-          font-size: 11px;
-          background: rgba(255,255,255,0.9);
-          cursor: pointer;
-        }
       </style>
       <ha-card>
         <div class="ev-visual">
@@ -402,15 +313,8 @@ class EvCarTileCard extends HTMLElement {
             </div>
           </div>
         </div>
-        <div class="actions">
-          <button id="setClimateBtn">Set Climate</button>
-          <button id="setTargetBtn">Set Target</button>
-          <button id="toggleChargingBtn">${charging ? "Stop Charging" : "Start Charging"}</button>
-        </div>
       </ha-card>
     `;
-
-    this._bindActions(this.shadowRoot);
   }
 }
 
@@ -445,8 +349,6 @@ class EvCarTileCardEditor extends HTMLElement {
   _render() {
     const c = this._config || EvCarTileCard.getStubConfig();
     const e = c.entities || {};
-    const a = c.actions || {};
-
     this.innerHTML = `
       <style>
         .grid { display: grid; gap: 8px; }
@@ -470,11 +372,6 @@ class EvCarTileCardEditor extends HTMLElement {
 
         <h4>Options</h4>
         ${this._field("Battery Capacity (kWh)", "options.battery_capacity_kwh", c.options?.battery_capacity_kwh ?? 77)}
-
-        <h4>Actions</h4>
-        ${this._field("Set Climate Service", "actions.set_climate.service", a.set_climate?.service || "")}
-        ${this._field("Set Target Service", "actions.set_target.service", a.set_target?.service || "")}
-        ${this._field("Toggle Charging Service", "actions.toggle_charging.service", a.toggle_charging?.service || "")}
       </div>
     `;
 
