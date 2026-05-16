@@ -9,6 +9,8 @@ interface EvCarEntities {
   doors_closed: string;
   climate_on: string;
   climate_temp: string;
+  eta: string;
+  is_moving: string;
 }
 
 interface EvCarImages {
@@ -16,6 +18,7 @@ interface EvCarImages {
   home_not_charging: string;
   away_charging: string;
   away_driving: string;
+  away_standing: string;
   warning_window: string;
   warning_door: string;
 }
@@ -107,7 +110,9 @@ class EvCarTileCard extends HTMLElement {
         windows_closed: "",
         doors_closed: "",
         climate_on: "",
-        climate_temp: ""
+        climate_temp: "",
+        eta: "",
+        is_moving: ""
       },
       options: {
         battery_capacity_kwh: 77,
@@ -118,6 +123,7 @@ class EvCarTileCard extends HTMLElement {
           home_not_charging: "",
           away_charging: "",
           away_driving: "",
+          away_standing: "",
           warning_window: "",
           warning_door: ""
         },
@@ -296,6 +302,7 @@ class EvCarTileCard extends HTMLElement {
     const doorsClosed = !this._bool(e.doors_closed, false);
     const climateOn = this._bool(e.climate_on, false);
     const climateTemp = this._num(e.climate_temp, 21);
+    const isMoving = this._bool(e.is_moving, false);
 
     const carImageScale = this._layoutNumberValue("car_image_scale", 1.08);
     const visualMinHeight = this._layoutValue("visual_min_height", "220px");
@@ -324,7 +331,9 @@ class EvCarTileCard extends HTMLElement {
         : this._imageOverride("home_not_charging", "athome_notcharging_transparent.png")
       : charging
         ? this._imageOverride("away_charging", "away_charging_transparent.png")
-        : this._imageOverride("away_driving", "away_driving_transparent.png");
+        : isMoving
+          ? this._imageOverride("away_driving", "away_driving_transparent.png")
+          : this._imageOverride("away_standing", "away_standing.png");
 
     const warningWindowImage = this._imageOverride("warning_window", "noun-car-window.svg");
     const warningDoorImage = this._imageOverride("warning_door", "noun-car.svg");
@@ -335,7 +344,10 @@ class EvCarTileCard extends HTMLElement {
 
     let etaText = "ETA --";
 
-    if (remPercent <= 0) {
+    const etaMins = e.eta ? this._num(e.eta, -1) : -1;
+    if (etaMins >= 0) {
+      etaText = `ETA ${Math.floor(etaMins / 60)}h ${etaMins % 60}m`;
+    } else if (remPercent <= 0) {
       etaText = "ETA 0h 0m";
     } else if (charging && power > 0) {
       const energyNeeded = (remPercent / 100) * cap;
@@ -702,6 +714,8 @@ class EvCarTileCardEditor extends HTMLElement {
         { name: "doors_closed",   label: "Doors open (binary_sensor)",   selector: { entity: {} } },
         { name: "climate_on",     label: "Climate on (binary_sensor)",   selector: { entity: {} } },
         { name: "climate_temp",   label: "Climate temperature",          selector: { entity: {} } },
+        { name: "eta",            label: "ETA (minutes sensor)",          selector: { entity: {} } },
+        { name: "is_moving",      label: "Is Moving (binary_sensor)",     selector: { entity: {} } },
       ],
       { ...e },
       (val) => this._fire({ ...c, entities: { ...e, ...val as Partial<EvCarEntities> } })
@@ -731,6 +745,7 @@ class EvCarTileCardEditor extends HTMLElement {
         { name: "home_not_charging", label: "Home — Not Charging",       selector: { text: {} } },
         { name: "away_charging",     label: "Away — Charging",           selector: { text: {} } },
         { name: "away_driving",      label: "Away — Driving",            selector: { text: {} } },
+        { name: "away_standing",     label: "Away — Standing",           selector: { text: {} } },
         { name: "warning_window",    label: "Warning: Window Open Icon", selector: { text: {} } },
         { name: "warning_door",      label: "Warning: Door Open Icon",   selector: { text: {} } },
       ],
