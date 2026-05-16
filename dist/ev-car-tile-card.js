@@ -310,6 +310,7 @@ class EvCarTileCard extends HTMLElement {
           width: 26px;
           height: 26px;
           object-fit: contain;
+          clip-path: inset(0 0 19% 0);
           filter: invert(58%) sepia(78%) saturate(1426%) hue-rotate(358deg) brightness(98%) contrast(95%);
         }
 
