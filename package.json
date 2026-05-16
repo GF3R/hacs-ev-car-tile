@@ -1,0 +1,14 @@
+{
+  "name": "hacs-ev-car-tile",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Build tooling for EV Car Tile Card",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && cp dist/ev-car-tile-card.js ev-car-tile-card.js",
+    "watch": "tsc -p tsconfig.json --watch",
+    "clean": "rm -f dist/ev-car-tile-card.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}

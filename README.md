@@ -52,3 +52,16 @@ actions:
 - All values are read from entities in `entities`.
 - Climate badge shows only when climate is on.
 - Warning icons appear for open windows/doors.
+
+## Development
+
+- Source is now `ev-car-tile-card.ts`.
+- Build output is generated to `dist/ev-car-tile-card.js` and copied to `ev-car-tile-card.js`.
+
+Commands:
+
+```bash
+npm install
+npm run build
+npm run watch
+```
