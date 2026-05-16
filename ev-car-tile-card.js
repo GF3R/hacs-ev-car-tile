@@ -332,8 +332,10 @@ class EvCarTileCard extends HTMLElement {
           font-size: 9px;
           padding: 1px 5px;
           border-radius: 999px;
-          background: rgba(255,255,255,0.9);
-          border: 1px solid rgba(36,44,52,0.25);
+          background: var(--card-background-color, #fff);
+          border: 1px solid var(--divider-color, rgba(36,44,52,0.25));
+          color: var(--primary-text-color);
+          font-weight: 600;
           white-space: nowrap;
         }
 
