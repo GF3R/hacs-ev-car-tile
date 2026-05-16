@@ -17,7 +17,8 @@ class EvCarTileCard extends HTMLElement {
       },
       options: {
         battery_capacity_kwh: 77,
-        show_eta_when_not_charging: false
+        show_eta_when_not_charging: false,
+        asset_base_path: "/hacsfiles/hacs-ev-car-tile/assets"
       }
     };
   }
@@ -38,7 +39,8 @@ class EvCarTileCard extends HTMLElement {
       entities: {},
       options: {
         battery_capacity_kwh: 77,
-        show_eta_when_not_charging: false
+        show_eta_when_not_charging: false,
+        asset_base_path: "/hacsfiles/hacs-ev-car-tile/assets"
       },
       actions: {},
       ...config,
@@ -58,6 +60,7 @@ class EvCarTileCard extends HTMLElement {
       options: {
         battery_capacity_kwh: 77,
         show_eta_when_not_charging: false,
+        asset_base_path: "/hacsfiles/hacs-ev-car-tile/assets",
         ...(config.options || {})
       }
     };
@@ -104,6 +107,13 @@ class EvCarTileCard extends HTMLElement {
   }
 
   _asset(name) {
+    const configuredBase = this._config?.options?.asset_base_path;
+    if (configuredBase) {
+      return `${String(configuredBase).replace(/\/$/, "")}/${name}`;
+    }
+    if (this._hass && typeof this._hass.hassUrl === "function") {
+      return this._hass.hassUrl(`/hacsfiles/hacs-ev-car-tile/assets/${name}`);
+    }
     return new URL(`./assets/${name}`, import.meta.url).toString();
   }
 
