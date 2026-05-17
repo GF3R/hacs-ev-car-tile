@@ -1,3 +1,4 @@
+const RELEASE_QUERY_HASH = "0.1.0";
 class EvCarTileCard extends HTMLElement {
     static getStubConfig() {
         return {
@@ -123,13 +124,18 @@ class EvCarTileCard extends HTMLElement {
     }
     _asset(name) {
         const configuredBase = this._config?.options?.asset_base_path;
+        const join = (base) => {
+            const url = `${base.replace(/\/$/, "")}/${name}`;
+            const separator = url.includes("?") ? "&" : "?";
+            return `${url}${separator}v=${encodeURIComponent(RELEASE_QUERY_HASH)}`;
+        };
         if (configuredBase) {
-            return `${String(configuredBase).replace(/\/$/, "")}/${name}`;
+            return join(String(configuredBase));
         }
         if (this._hass && typeof this._hass.hassUrl === "function") {
-            return this._hass.hassUrl(`/hacsfiles/hacs-ev-car-tile/assets/${name}`);
+            return this._hass.hassUrl(`/hacsfiles/hacs-ev-car-tile/assets/${name}?v=${encodeURIComponent(RELEASE_QUERY_HASH)}`);
         }
-        return `/hacsfiles/hacs-ev-car-tile/assets/${name}`;
+        return `/hacsfiles/hacs-ev-car-tile/assets/${name}?v=${encodeURIComponent(RELEASE_QUERY_HASH)}`;
     }
     _layoutValue(key, fallback) {
         const value = this._config?.options?.layout?.[key];
@@ -273,21 +279,36 @@ class EvCarTileCard extends HTMLElement {
           left: ${climateBadgeLeft};
           top: ${climateBadgeTop};
           transform: ${climateBadgeTransform};
-          display: ${climateOn ? "inline-flex" : "none"};
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
           z-index: 5;
-          padding: 2px 8px;
+          padding: 2px 8px 2px 4px;
           border-radius: 999px;
           font-size: 12px;
           background: var(--card-background-color, #fff);
           border: 1px solid var(--divider-color, rgba(48,56,64,0.24));
-          color: var(--primary-text-color);
+          color: ${climateOn ? "var(--primary-text-color)" : "var(--disabled-text-color, rgba(var(--rgb-primary-text-color), 0.38))"};
           font-weight: 600;
+          opacity: ${climateOn ? "1" : "0.5"};
+        }
+
+        .climate-icon {
+          width: 22px;
+          height: 22px;
+          object-fit: contain;
+          clip-path: inset(0 0 19% 0);
+          margin-top: 3px;
+          filter: ${climateOn
+            ? "invert(58%) sepia(78%) saturate(1426%) hue-rotate(358deg) brightness(98%) contrast(95%)"
+            : "invert(60%) sepia(0%) saturate(0%) brightness(80%) contrast(80%)"};
         }
 
         .power-chip {
           position: absolute;
           left: ${powerChipLeft};
           bottom: ${powerChipBottom};
+          display: ${charging ? "inline-block" : "none"};
           z-index: 5;
           padding: 3px 8px;
           border-radius: 999px;
@@ -301,7 +322,7 @@ class EvCarTileCard extends HTMLElement {
           position: absolute;
           right: ${warningRight};
           top: ${warningTop};
-          display: ${warningVisible ? "inline-flex" : "none"};
+          display: inline-flex;
           gap: 4px;
           z-index: 5;
         }
@@ -311,11 +332,11 @@ class EvCarTileCard extends HTMLElement {
           height: 26px;
           object-fit: contain;
           clip-path: inset(0 0 19% 0);
-          filter: invert(58%) sepia(78%) saturate(1426%) hue-rotate(358deg) brightness(98%) contrast(95%);
+          filter: grayscale(100%) brightness(0.8) opacity(0.38);
         }
 
-        .warning img.hidden {
-          display: none;
+        .warning img.active {
+          filter: invert(58%) sepia(78%) saturate(1426%) hue-rotate(358deg) brightness(98%) contrast(95%);
         }
 
         .battery {
@@ -412,7 +433,7 @@ class EvCarTileCard extends HTMLElement {
       <ha-card>
         <div class="ev-visual">
           <div class="ev-car-zone">
-            <span class="climate-badge">🌡️ ${climateTemp}C</span>
+            <span class="climate-badge"><img class="climate-icon" src="${this._asset("noun-thermostat.svg")}" alt="" />${climateTemp}°C</span>
 
             <div class="battery">
               <span class="eta">${etaText}</span>
@@ -434,8 +455,8 @@ class EvCarTileCard extends HTMLElement {
                 .join(", ")
             : "no warnings"}"
             >
-              <img class="${warningWindow ? "" : "hidden"}" src="${warningWindowImage}" alt="" />
-              <img class="${warningDoor ? "" : "hidden"}" src="${warningDoorImage}" alt="" />
+              <img class="${warningWindow ? "active" : ""}" src="${warningWindowImage}" alt="" />
+              <img class="${warningDoor ? "active" : ""}" src="${warningDoorImage}" alt="" />
             </span>
 
             <img class="car-image" src="${image}" alt="${this._config.name || "EV"}" />
