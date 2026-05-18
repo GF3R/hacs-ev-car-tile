@@ -49,6 +49,8 @@ interface EvCarLayout {
 interface EvCarOptions {
   battery_capacity_kwh: number;
   show_eta_when_not_charging: boolean;
+  car_name: string;
+  car_names: string[];
   asset_base_path: string;
   images: EvCarImages;
   layout: EvCarLayout;
@@ -92,6 +94,7 @@ interface Window {
 type FormValue = Record<string, unknown>;
 
 const RELEASE_QUERY_HASH = "0.1.0";
+const REMOTE_ASSET_ROOT = "https://jolly-pebble-011696d10.7.azurestaticapps.net/assets";
 
 class EvCarTileCard extends HTMLElement {
   private _config: EvCarTileCardConfig | null;
@@ -123,7 +126,9 @@ class EvCarTileCard extends HTMLElement {
       options: {
         battery_capacity_kwh: 77,
         show_eta_when_not_charging: false,
-        asset_base_path: "/hacsfiles/hacs-ev-car-tile/assets",
+        car_name: "default",
+        car_names: ["default"],
+        asset_base_path: `${REMOTE_ASSET_ROOT}/{{car name}}/images`,
         images: {
           home_charging: "",
           home_not_charging: "",
@@ -137,7 +142,7 @@ class EvCarTileCard extends HTMLElement {
           visual_min_height: "220px",
           zone_height: "200px",
           car_image_left: "0",
-          car_image_top: "10%",
+          car_image_top: "0px",
           car_image_width: "100%",
           car_image_height: "100%",
           car_image_object_position: "40%",
@@ -266,11 +271,27 @@ class EvCarTileCard extends HTMLElement {
 
   _asset(name: string): string {
     const configuredBase = this._config?.options?.asset_base_path;
+    const selectedCarName = String(this._config?.options?.car_name || "default").trim() || "default";
+    const encodedCarName = encodeURIComponent(selectedCarName);
+    const normalizedRoot = REMOTE_ASSET_ROOT.replace(/\/$/, "");
+    const isSvg = name.toLowerCase().endsWith(".svg");
+    const resolveBase = (base: string): string => {
+      return base
+        .replace(/\{\{\s*car name\s*\}\}/gi, encodedCarName)
+        .replace(/\{\{\s*car_name\s*\}\}/gi, encodedCarName);
+    };
     const join = (base: string): string => {
-      const url = `${base.replace(/\/$/, "")}/${name}`;
+      const resolved = resolveBase(base);
+      const url = `${resolved.replace(/\/$/, "")}/${name}`;
       const separator = url.includes("?") ? "&" : "?";
       return `${url}${separator}v=${encodeURIComponent(RELEASE_QUERY_HASH)}`;
     };
+
+    if (isSvg) {
+      const svgUrl = `${normalizedRoot}/${name}`;
+      const separator = svgUrl.includes("?") ? "&" : "?";
+      return `${svgUrl}${separator}v=${encodeURIComponent(RELEASE_QUERY_HASH)}`;
+    }
 
     if (configuredBase) {
       return join(String(configuredBase));
@@ -342,7 +363,7 @@ class EvCarTileCard extends HTMLElement {
     const visualMinHeight = this._layoutValue("visual_min_height", "220px");
     const zoneHeight = this._layoutValue("zone_height", "200px");
     const carImageLeft = this._layoutValue("car_image_left", "0");
-    const carImageTop = this._layoutValue("car_image_top", "10%");
+    const carImageTop = this._layoutValue("car_image_top", "0px");
     const carImageWidth = this._layoutValue("car_image_width", "100%");
     const carImageHeight = this._layoutValue("car_image_height", "100%");
     const carImageObjectPosition = this._layoutValue("car_image_object_position", "40%");
@@ -430,13 +451,13 @@ class EvCarTileCard extends HTMLElement {
         .car-image {
           position: absolute;
           left: ${carImageLeft};
-          top: ${carImageTop};
+          top: 50%;
           width: ${carImageWidth};
           height: ${carImageHeight};
           object-fit: contain;
           object-position: ${carImageObjectPosition};
-          transform: scale(${responsiveImageScale});
-          transform-origin: center bottom;
+          transform: translateY(calc(-50% + ${carImageTop})) scale(${responsiveImageScale});
+          transform-origin: center center;
           filter: drop-shadow(0 16px 12px rgba(40, 38, 31, 0.2));
         }
 
@@ -735,6 +756,13 @@ class EvCarTileCardEditor extends HTMLElement {
     const o = c.options;
     const imgs = o.images;
     const l = o.layout;
+    const configuredCarNames = Array.isArray(o.car_names)
+      ? o.car_names.map((name) => String(name).trim()).filter(Boolean)
+      : [];
+    const carNames = configuredCarNames.length ? [...new Set(configuredCarNames)] : ["default"];
+    const selectedCar = String(o.car_name || "").trim();
+    const selectedCarName = selectedCar && carNames.includes(selectedCar) ? selectedCar : carNames[0];
+    const carNameOptions = carNames.map((name) => ({ label: name, value: name }));
 
     this.innerHTML = `<style>
       :host { display: block; }
@@ -787,15 +815,40 @@ class EvCarTileCardEditor extends HTMLElement {
     app(this._buildForm(
       [
         { name: "battery_capacity_kwh",       label: "Battery Capacity (kWh)",       selector: { number: { min: 1, max: 300, step: 0.1, mode: "box" } } },
+        { name: "car_name",                  label: "Selected Car",                selector: { select: { mode: "dropdown", options: carNameOptions } } },
+        { name: "car_names_csv",             label: "Cars (comma separated)",       selector: { text: {} } },
         { name: "asset_base_path",            label: "Asset Base Path",              selector: { text: {} } },
         { name: "show_eta_when_not_charging", label: "Show ETA When Not Charging",   selector: { boolean: {} } },
       ],
       {
         battery_capacity_kwh:       o.battery_capacity_kwh ?? 77,
+        car_name:                   selectedCarName,
+        car_names_csv:              carNames.join(", "),
         asset_base_path:            o.asset_base_path ?? "",
         show_eta_when_not_charging: o.show_eta_when_not_charging ?? false,
       },
-      (val) => this._fire({ ...c, options: { ...o, ...val as Partial<EvCarOptions> } })
+      (val) => {
+        const raw = val as Partial<EvCarOptions> & { car_names_csv?: string };
+        const parsedCarNames = (raw.car_names_csv ?? "")
+          .split(",")
+          .map((name) => name.trim())
+          .filter(Boolean);
+        const normalizedCarNames = [...new Set(parsedCarNames.length ? parsedCarNames : carNames)];
+        const requestedCar = String(raw.car_name ?? selectedCarName).trim();
+        const normalizedCarName = normalizedCarNames.includes(requestedCar)
+          ? requestedCar
+          : normalizedCarNames[0] || "default";
+        const { car_names_csv: _unused, ...rest } = raw;
+        this._fire({
+          ...c,
+          options: {
+            ...o,
+            ...rest as Partial<EvCarOptions>,
+            car_name: normalizedCarName,
+            car_names: normalizedCarNames.length ? normalizedCarNames : ["default"]
+          }
+        });
+      }
     ));
 
     // ── Image Overrides ───────────────────────────────────────────────────────
