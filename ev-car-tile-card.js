@@ -1,5 +1,6 @@
 const RELEASE_QUERY_HASH = "0.1.0";
 const REMOTE_ASSET_ROOT = "https://jolly-pebble-011696d10.7.azurestaticapps.net/assets";
+const REMOTE_CAR_LIST_URL = "https://jolly-pebble-011696d10.7.azurestaticapps.net/carlist.json";
 class EvCarTileCard extends HTMLElement {
     static getStubConfig() {
         return {
@@ -22,8 +23,7 @@ class EvCarTileCard extends HTMLElement {
             options: {
                 battery_capacity_kwh: 77,
                 show_eta_when_not_charging: false,
-                car_name: "default",
-                car_names: ["default"],
+                car_name: "polestar",
                 asset_base_path: `${REMOTE_ASSET_ROOT}/{{car name}}/images`,
                 images: {
                     home_charging: "",
@@ -519,6 +519,12 @@ class EvCarTileCardEditor extends HTMLElement {
         super();
         this._config = null;
         this._hass = null;
+        this._carCatalog = [];
+        this._carCatalogLoaded = false;
+        this._carCatalogLoadPromise = null;
+    }
+    connectedCallback() {
+        void this._loadCarCatalog();
     }
     set hass(hass) {
         this._hass = hass;
@@ -526,6 +532,51 @@ class EvCarTileCardEditor extends HTMLElement {
         this.querySelectorAll("ha-form").forEach((f) => {
             f.hass = hass;
         });
+    }
+    async _loadCarCatalog() {
+        if (this._carCatalogLoaded) {
+            return;
+        }
+        if (this._carCatalogLoadPromise) {
+            return this._carCatalogLoadPromise;
+        }
+        this._carCatalogLoadPromise = (async () => {
+            try {
+                const response = await fetch(REMOTE_CAR_LIST_URL, { cache: "no-store" });
+                if (!response.ok) {
+                    return;
+                }
+                const payload = (await response.json());
+                if (!Array.isArray(payload)) {
+                    return;
+                }
+                this._carCatalog = payload
+                    .map((item) => {
+                    if (!item || typeof item !== "object") {
+                        return null;
+                    }
+                    const candidate = item;
+                    const folder = String(candidate.folder ?? "").trim();
+                    const label = String(candidate.label ?? folder).trim();
+                    const assetBasePath = String(candidate.assetBasePath ?? "").trim();
+                    if (!folder || !assetBasePath) {
+                        return null;
+                    }
+                    return {
+                        folder,
+                        label: label || folder,
+                        assetBasePath
+                    };
+                })
+                    .filter((item) => item !== null);
+            }
+            finally {
+                this._carCatalogLoaded = true;
+                this._carCatalogLoadPromise = null;
+                this._render();
+            }
+        })();
+        return this._carCatalogLoadPromise;
     }
     setConfig(config) {
         this._config = {
@@ -585,13 +636,16 @@ class EvCarTileCardEditor extends HTMLElement {
         const o = c.options;
         const imgs = o.images;
         const l = o.layout;
-        const configuredCarNames = Array.isArray(o.car_names)
-            ? o.car_names.map((name) => String(name).trim()).filter(Boolean)
-            : [];
-        const carNames = configuredCarNames.length ? [...new Set(configuredCarNames)] : ["default"];
+        const fallbackCarName = String(o.car_name || "polestar").trim() || "polestar";
+        const catalog = this._carCatalog.length
+            ? this._carCatalog
+            : [{ folder: fallbackCarName, label: fallbackCarName, assetBasePath: String(o.asset_base_path || "").trim() }];
+        const carNameOptions = catalog.map((item) => ({ label: item.label, value: item.folder }));
         const selectedCar = String(o.car_name || "").trim();
-        const selectedCarName = selectedCar && carNames.includes(selectedCar) ? selectedCar : carNames[0];
-        const carNameOptions = carNames.map((name) => ({ label: name, value: name }));
+        const selectedCarName = catalog.some((item) => item.folder === selectedCar)
+            ? selectedCar
+            : catalog[0].folder;
+        const selectedCarAssetBasePath = catalog.find((item) => item.folder === selectedCarName)?.assetBasePath ?? o.asset_base_path ?? "";
         this.innerHTML = `<style>
       :host { display: block; }
       ha-form { display: block; margin-bottom: 8px; }
@@ -637,28 +691,24 @@ class EvCarTileCardEditor extends HTMLElement {
         ], {
             battery_capacity_kwh: o.battery_capacity_kwh ?? 77,
             car_name: selectedCarName,
-            car_names_csv: carNames.join(", "),
-            asset_base_path: o.asset_base_path ?? "",
+            asset_base_path: selectedCarAssetBasePath,
             show_eta_when_not_charging: o.show_eta_when_not_charging ?? false,
         }, (val) => {
             const raw = val;
-            const parsedCarNames = (raw.car_names_csv ?? "")
-                .split(",")
-                .map((name) => name.trim())
-                .filter(Boolean);
-            const normalizedCarNames = [...new Set(parsedCarNames.length ? parsedCarNames : carNames)];
             const requestedCar = String(raw.car_name ?? selectedCarName).trim();
-            const normalizedCarName = normalizedCarNames.includes(requestedCar)
+            const normalizedCarName = catalog.some((item) => item.folder === requestedCar)
                 ? requestedCar
-                : normalizedCarNames[0] || "default";
-            const { car_names_csv: _unused, ...rest } = raw;
+                : selectedCarName;
+            const nextAssetBasePath = catalog.find((item) => item.folder === normalizedCarName)?.assetBasePath ?? selectedCarAssetBasePath;
+            const currentAssetBasePath = String(raw.asset_base_path ?? "").trim();
+            const shouldFollowSelectedCar = !currentAssetBasePath || currentAssetBasePath === selectedCarAssetBasePath;
             this._fire({
                 ...c,
                 options: {
                     ...o,
-                    ...rest,
+                    ...raw,
                     car_name: normalizedCarName,
-                    car_names: normalizedCarNames.length ? normalizedCarNames : ["default"]
+                    asset_base_path: shouldFollowSelectedCar ? nextAssetBasePath : currentAssetBasePath
                 }
             });
         }));
