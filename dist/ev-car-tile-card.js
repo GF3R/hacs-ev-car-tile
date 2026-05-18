@@ -35,19 +35,19 @@ class EvCarTileCard extends HTMLElement {
                     visual_min_height: "220px",
                     zone_height: "200px",
                     car_image_left: "0",
-                    car_image_top: "0",
+                    car_image_top: "10%",
                     car_image_width: "100%",
                     car_image_height: "100%",
-                    car_image_object_position: "44% bottom",
-                    car_image_scale: 1.08,
+                    car_image_object_position: "40%",
+                    car_image_scale: 1,
                     climate_badge_left: "50%",
                     climate_badge_top: "2px",
                     climate_badge_transform: "translateX(-50%)",
-                    power_chip_left: "10%",
+                    power_chip_left: "5%",
                     power_chip_bottom: "84px",
                     warning_right: "2px",
                     warning_top: "2px",
-                    battery_left: "82%",
+                    battery_left: "89%",
                     battery_bottom: "40px",
                     battery_width: "30px",
                     car_overlay_left: "6px",
@@ -61,6 +61,24 @@ class EvCarTileCard extends HTMLElement {
         this.attachShadow({ mode: "open" });
         this._config = null;
         this._hass = null;
+        this._resizeObserver = null;
+        this._lastTileWidth = 0;
+        if (typeof ResizeObserver !== "undefined") {
+            this._resizeObserver = new ResizeObserver((entries) => {
+                const width = entries[0]?.contentRect?.width ?? 0;
+                if (Math.abs(width - this._lastTileWidth) < 2) {
+                    return;
+                }
+                this._lastTileWidth = width;
+                this._render();
+            });
+        }
+    }
+    connectedCallback() {
+        this._resizeObserver?.observe(this);
+    }
+    disconnectedCallback() {
+        this._resizeObserver?.disconnect();
     }
     setConfig(config) {
         if (!config || config.type !== "custom:ev-car-tile-card") {
@@ -178,26 +196,28 @@ class EvCarTileCard extends HTMLElement {
         const climateOn = this._bool(e.climate_on, false);
         const climateTemp = this._num(e.climate_temp, 21);
         const isMoving = this._bool(e.is_moving, false);
-        const carImageScale = this._layoutNumberValue("car_image_scale", 1.08);
+        const carImageScale = this._layoutNumberValue("car_image_scale", 1);
         const visualMinHeight = this._layoutValue("visual_min_height", "220px");
         const zoneHeight = this._layoutValue("zone_height", "200px");
         const carImageLeft = this._layoutValue("car_image_left", "0");
-        const carImageTop = this._layoutValue("car_image_top", "0");
+        const carImageTop = this._layoutValue("car_image_top", "10%");
         const carImageWidth = this._layoutValue("car_image_width", "100%");
         const carImageHeight = this._layoutValue("car_image_height", "100%");
-        const carImageObjectPosition = this._layoutValue("car_image_object_position", "44% bottom");
+        const carImageObjectPosition = this._layoutValue("car_image_object_position", "40%");
         const climateBadgeLeft = this._layoutValue("climate_badge_left", "50%");
         const climateBadgeTop = this._layoutValue("climate_badge_top", "2px");
         const climateBadgeTransform = this._layoutValue("climate_badge_transform", "translateX(-50%)");
-        const powerChipLeft = this._layoutValue("power_chip_left", "10%");
+        const powerChipLeft = this._layoutValue("power_chip_left", "5%");
         const powerChipBottom = this._layoutValue("power_chip_bottom", "84px");
         const warningRight = this._layoutValue("warning_right", "2px");
         const warningTop = this._layoutValue("warning_top", "2px");
-        const batteryLeft = this._layoutValue("battery_left", "82%");
+        const batteryLeft = this._layoutValue("battery_left", "89%");
         const batteryBottom = this._layoutValue("battery_bottom", "40px");
         const batteryWidth = this._layoutValue("battery_width", "30px");
         const carOverlayLeft = this._layoutValue("car_overlay_left", "6px");
         const carOverlayTop = this._layoutValue("car_overlay_top", "4px");
+        const tileWidth = Math.max(180, this.getBoundingClientRect().width || this._lastTileWidth || 320);
+        const responsiveImageScale = Math.max(0.75, Math.min(1.6, carImageScale * (tileWidth / 320)));
         const image = home
             ? charging
                 ? this._imageOverride("home_charging", "athome_charging_transparent.png")
@@ -238,7 +258,6 @@ class EvCarTileCard extends HTMLElement {
           border-radius: 16px;
           overflow: hidden;
           padding: 12px;
-          background: var(--ha-card-background, var(--card-background-color));
         }
 
         .ev-visual {
@@ -269,7 +288,7 @@ class EvCarTileCard extends HTMLElement {
           height: ${carImageHeight};
           object-fit: contain;
           object-position: ${carImageObjectPosition};
-          transform: scale(${carImageScale});
+          transform: scale(${responsiveImageScale});
           transform-origin: center bottom;
           filter: drop-shadow(0 16px 12px rgba(40, 38, 31, 0.2));
         }
@@ -304,18 +323,24 @@ class EvCarTileCard extends HTMLElement {
             : "invert(60%) sepia(0%) saturate(0%) brightness(80%) contrast(80%)"};
         }
 
-        .power-chip {
+        .kw-badge {
           position: absolute;
           left: ${powerChipLeft};
-          bottom: ${powerChipBottom};
-          display: ${charging ? "inline-block" : "none"};
+          top: calc(100% - ${powerChipBottom} - 12px);
+          display: ${charging ? "flex" : "none"};
+          align-items: center;
+          gap: 0.2em;
           z-index: 5;
-          padding: 3px 8px;
+          padding: 0.16em 0.4em;
           border-radius: 999px;
-          font-size: 12px;
-          background: rgba(236,249,240,0.92);
-          border: 1px solid rgba(70,126,84,0.55);
-          color: #25573a;
+          background: rgba(31, 72, 50, 0.78);
+          border: 1px solid rgba(153, 255, 185, 0.9);
+          color: #b8ffd0;
+          font-size: 9px;
+          font-weight: 700;
+          box-shadow: 0 0 18px rgba(90, 255, 150, 0.5);
+          backdrop-filter: blur(4px);
+          transform: translateY(-50%);
         }
 
         .warning {
@@ -445,7 +470,7 @@ class EvCarTileCard extends HTMLElement {
               <div class="battery-labels">${current}% / ${target}%</div>
             </div>
 
-            <span class="power-chip">${charging ? `${power.toFixed(1)} kW` : "0.0 kW"}</span>
+            <span class="kw-badge ${charging ? "charging" : ""}">⚡ ${power.toFixed(1)} kW</span>
 
             <span
               class="warning"
