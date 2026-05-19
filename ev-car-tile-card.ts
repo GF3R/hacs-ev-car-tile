@@ -105,22 +105,22 @@ const DEFAULT_CAR_CATALOG: CarCatalogItem[] = [
   {
     folder: "polestar",
     label: "Polestar",
-    assetBasePath: `${REMOTE_ASSET_ROOT}/polestar/images`
+    assetBasePath: `${REMOTE_ASSET_ROOT}/polestar`
   },
   {
     folder: "tesla-model-3",
     label: "Tesla Model 3",
-    assetBasePath: `${REMOTE_ASSET_ROOT}/tesla-model-3/images`
+    assetBasePath: `${REMOTE_ASSET_ROOT}/tesla-model-3`
   },
   {
     folder: "tesla-model-y",
     label: "Tesla Model Y",
-    assetBasePath: `${REMOTE_ASSET_ROOT}/tesla-model-y/images`
+    assetBasePath: `${REMOTE_ASSET_ROOT}/tesla-model-y`
   },
   {
     folder: "vw-id.3",
     label: "Volkswagen ID.3",
-    assetBasePath: `${REMOTE_ASSET_ROOT}/vw-id.3/images`
+    assetBasePath: `${REMOTE_ASSET_ROOT}/vw-id.3`
   }
 ];
 const DEFAULT_CAR_NAMES_CSV = DEFAULT_CAR_CATALOG.map((item) => item.folder).join(", ");
@@ -157,7 +157,7 @@ class EvCarTileCard extends HTMLElement {
         show_eta_when_not_charging: false,
         car_name: "polestar",
         car_names_csv: DEFAULT_CAR_NAMES_CSV,
-        asset_base_path: `${REMOTE_ASSET_ROOT}/{{car name}}/images`,
+        asset_base_path: `${REMOTE_ASSET_ROOT}/{{car name}}`,
         images: {
           home_charging: "",
           home_not_charging: "",
