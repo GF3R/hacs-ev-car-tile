@@ -50,6 +50,7 @@ interface EvCarOptions {
   battery_capacity_kwh: number;
   show_eta_when_not_charging: boolean;
   car_name: string;
+  car_names_csv: string;
   asset_base_path: string;
   images: EvCarImages;
   layout: EvCarLayout;
@@ -100,7 +101,29 @@ type FormValue = Record<string, unknown>;
 
 const RELEASE_QUERY_HASH = "0.1.0";
 const REMOTE_ASSET_ROOT = "https://jolly-pebble-011696d10.7.azurestaticapps.net/assets";
-const REMOTE_CAR_LIST_URL = "https://jolly-pebble-011696d10.7.azurestaticapps.net/carlist.json";
+const DEFAULT_CAR_CATALOG: CarCatalogItem[] = [
+  {
+    folder: "polestar",
+    label: "Polestar",
+    assetBasePath: `${REMOTE_ASSET_ROOT}/polestar/images`
+  },
+  {
+    folder: "tesla-model-3",
+    label: "Tesla Model 3",
+    assetBasePath: `${REMOTE_ASSET_ROOT}/tesla-model-3/images`
+  },
+  {
+    folder: "tesla-model-y",
+    label: "Tesla Model Y",
+    assetBasePath: `${REMOTE_ASSET_ROOT}/tesla-model-y/images`
+  },
+  {
+    folder: "vw-id.3",
+    label: "Volkswagen ID.3",
+    assetBasePath: `${REMOTE_ASSET_ROOT}/vw-id.3/images`
+  }
+];
+const DEFAULT_CAR_NAMES_CSV = DEFAULT_CAR_CATALOG.map((item) => item.folder).join(", ");
 
 class EvCarTileCard extends HTMLElement {
   private _config: EvCarTileCardConfig | null;
@@ -133,6 +156,7 @@ class EvCarTileCard extends HTMLElement {
         battery_capacity_kwh: 77,
         show_eta_when_not_charging: false,
         car_name: "polestar",
+        car_names_csv: DEFAULT_CAR_NAMES_CSV,
         asset_base_path: `${REMOTE_ASSET_ROOT}/{{car name}}/images`,
         images: {
           home_charging: "",
@@ -677,86 +701,46 @@ class EvCarTileCardEditor extends HTMLElement {
 
   private _hass: HomeAssistant | null;
 
-  private _carCatalog: CarCatalogItem[];
-
-  private _carCatalogLoaded: boolean;
-
-  private _carCatalogLoadPromise: Promise<void> | null;
-
   constructor() {
     super();
     this._config = null;
     this._hass = null;
-    this._carCatalog = [];
-    this._carCatalogLoaded = false;
-    this._carCatalogLoadPromise = null;
-  }
-
-  connectedCallback(): void {
-    void this._loadCarCatalog();
   }
 
   set hass(hass: HomeAssistant) {
     this._hass = hass;
-    // Push updated hass to all ha-form instances
     this.querySelectorAll("ha-form").forEach((f) => {
       (f as unknown as { hass: HomeAssistant }).hass = hass;
     });
   }
 
-
-  async _loadCarCatalog(): Promise<void> {
-    if (this._carCatalogLoaded) {
-      return;
-    }
-
-    if (this._carCatalogLoadPromise) {
-      return this._carCatalogLoadPromise;
-    }
-
-    this._carCatalogLoadPromise = (async () => {
-      try {
-        const response = await fetch(REMOTE_CAR_LIST_URL, { cache: "no-store" });
-        if (!response.ok) {
-          return;
-        }
-
-        const payload = (await response.json()) as unknown;
-        if (!Array.isArray(payload)) {
-          return;
-        }
-
-        this._carCatalog = payload
-          .map((item) => {
-            if (!item || typeof item !== "object") {
-              return null;
-            }
-
-            const candidate = item as Partial<CarCatalogItem>;
-            const folder = String(candidate.folder ?? "").trim();
-            const label = String(candidate.label ?? folder).trim();
-            const assetBasePath = String(candidate.assetBasePath ?? "").trim();
-
-            if (!folder || !assetBasePath) {
-              return null;
-            }
-
-            return {
-              folder,
-              label: label || folder,
-              assetBasePath
-            };
-          })
-          .filter((item): item is CarCatalogItem => item !== null);
-      } finally {
-        this._carCatalogLoaded = true;
-        this._carCatalogLoadPromise = null;
-        this._render();
-      }
-    })();
-
-    return this._carCatalogLoadPromise;
+  _defaultAssetBasePathForCar(carName: string): string {
+    return `${REMOTE_ASSET_ROOT}/${encodeURIComponent(carName)}/images`;
   }
+
+  _catalogFromCsv(csv: string): CarCatalogItem[] {
+    const labelsByFolder = new Map(DEFAULT_CAR_CATALOG.map((item) => [item.folder, item.label]));
+    const seen = new Set<string>();
+    const names = String(csv)
+      .split(",")
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0)
+      .filter((name) => {
+        if (seen.has(name)) {
+          return false;
+        }
+        seen.add(name);
+        return true;
+      });
+
+    const resolvedNames = names.length ? names : DEFAULT_CAR_CATALOG.map((item) => item.folder);
+    return resolvedNames.map((folder) => ({
+      folder,
+      label: labelsByFolder.get(folder) ?? folder,
+      assetBasePath: this._defaultAssetBasePathForCar(folder)
+    }));
+  }
+
   setConfig(config: EvCarTileCardConfig): void {
     this._config = {
       ...EvCarTileCard.getStubConfig(),
@@ -827,16 +811,15 @@ class EvCarTileCardEditor extends HTMLElement {
     const o = c.options;
     const imgs = o.images;
     const l = o.layout;
-    const fallbackCarName = String(o.car_name || "polestar").trim() || "polestar";
-    const catalog = this._carCatalog.length
-      ? this._carCatalog
-      : [{ folder: fallbackCarName, label: fallbackCarName, assetBasePath: String(o.asset_base_path || "").trim() }];
+    const configuredCarsCsv = String(o.car_names_csv || DEFAULT_CAR_NAMES_CSV).trim() || DEFAULT_CAR_NAMES_CSV;
+    const catalog = this._catalogFromCsv(configuredCarsCsv);
     const carNameOptions = catalog.map((item) => ({ label: item.label, value: item.folder }));
     const selectedCar = String(o.car_name || "").trim();
     const selectedCarName = catalog.some((item) => item.folder === selectedCar)
       ? selectedCar
       : catalog[0].folder;
-    const selectedCarAssetBasePath = catalog.find((item) => item.folder === selectedCarName)?.assetBasePath ?? o.asset_base_path ?? "";
+    const selectedCarAssetBasePath = catalog.find((item) => item.folder === selectedCarName)?.assetBasePath
+      ?? this._defaultAssetBasePathForCar(selectedCarName);
 
     this.innerHTML = `<style>
       :host { display: block; }
@@ -855,7 +838,6 @@ class EvCarTileCardEditor extends HTMLElement {
 
     const app = (el: HTMLElement) => this.appendChild(el);
 
-    // ── Card ──────────────────────────────────────────────────────────────────
     app(this._section("Card"));
     app(this._buildForm(
       [{ name: "name", label: "Card Name", selector: { text: {} } }],
@@ -863,7 +845,6 @@ class EvCarTileCardEditor extends HTMLElement {
       (val) => this._fire({ ...c, ...val as Partial<EvCarTileCardConfig> })
     ));
 
-    // ── Entities ──────────────────────────────────────────────────────────────
     app(this._section("Entities"));
     app(this._buildForm(
       [
@@ -884,44 +865,47 @@ class EvCarTileCardEditor extends HTMLElement {
       (val) => this._fire({ ...c, entities: { ...e, ...val as Partial<EvCarEntities> } })
     ));
 
-    // ── Options ───────────────────────────────────────────────────────────────
     app(this._section("Options"));
     app(this._buildForm(
       [
         { name: "battery_capacity_kwh",       label: "Battery Capacity (kWh)",       selector: { number: { min: 1, max: 300, step: 0.1, mode: "box" } } },
-        { name: "car_name",                  label: "Selected Car",                selector: { select: { mode: "dropdown", options: carNameOptions } } },
-        { name: "car_names_csv",             label: "Cars (comma separated)",       selector: { text: {} } },
-        { name: "asset_base_path",            label: "Asset Base Path",              selector: { text: {} } },
-        { name: "show_eta_when_not_charging", label: "Show ETA When Not Charging",   selector: { boolean: {} } },
+        { name: "car_name",                   label: "Selected Car",                  selector: { select: { mode: "dropdown", options: carNameOptions } } },
+        { name: "car_names_csv",              label: "Cars (comma separated)",        selector: { text: {} } },
+        { name: "asset_base_path",            label: "Asset Base Path",               selector: { text: {} } },
+        { name: "show_eta_when_not_charging", label: "Show ETA When Not Charging",    selector: { boolean: {} } },
       ],
       {
         battery_capacity_kwh:       o.battery_capacity_kwh ?? 77,
         car_name:                   selectedCarName,
-        asset_base_path:            selectedCarAssetBasePath,
+        car_names_csv:              configuredCarsCsv,
+        asset_base_path:            o.asset_base_path ?? selectedCarAssetBasePath,
         show_eta_when_not_charging: o.show_eta_when_not_charging ?? false,
       },
       (val) => {
         const raw = val as Partial<EvCarOptions>;
+        const nextCarsCsv = String(raw.car_names_csv ?? configuredCarsCsv).trim() || DEFAULT_CAR_NAMES_CSV;
+        const nextCatalog = this._catalogFromCsv(nextCarsCsv);
         const requestedCar = String(raw.car_name ?? selectedCarName).trim();
-        const normalizedCarName = catalog.some((item) => item.folder === requestedCar)
+        const normalizedCarName = nextCatalog.some((item) => item.folder === requestedCar)
           ? requestedCar
-          : selectedCarName;
-        const nextAssetBasePath = catalog.find((item) => item.folder === normalizedCarName)?.assetBasePath ?? selectedCarAssetBasePath;
-        const currentAssetBasePath = String(raw.asset_base_path ?? "").trim();
-        const shouldFollowSelectedCar = !currentAssetBasePath || currentAssetBasePath === selectedCarAssetBasePath;
+          : nextCatalog[0].folder;
+        const previousDefaultAssetBasePath = this._defaultAssetBasePathForCar(selectedCarName);
+        const nextDefaultAssetBasePath = this._defaultAssetBasePathForCar(normalizedCarName);
+        const currentAssetBasePath = String(raw.asset_base_path ?? o.asset_base_path ?? "").trim();
+        const shouldFollowSelectedCar = !currentAssetBasePath || currentAssetBasePath === previousDefaultAssetBasePath;
         this._fire({
           ...c,
           options: {
             ...o,
             ...raw,
+            car_names_csv: nextCarsCsv,
             car_name: normalizedCarName,
-            asset_base_path: shouldFollowSelectedCar ? nextAssetBasePath : currentAssetBasePath
+            asset_base_path: shouldFollowSelectedCar ? nextDefaultAssetBasePath : currentAssetBasePath
           }
         });
       }
     ));
 
-    // ── Image Overrides ───────────────────────────────────────────────────────
     app(this._section("Image Overrides"));
     app(this._buildForm(
       [
@@ -937,30 +921,29 @@ class EvCarTileCardEditor extends HTMLElement {
       (val) => this._fire({ ...c, options: { ...o, images: { ...imgs, ...val as Partial<EvCarImages> } } })
     ));
 
-    // ── Layout ────────────────────────────────────────────────────────────────
     app(this._section("Layout"));
     app(this._buildForm(
       [
-        { name: "visual_min_height",        label: "Visual Min Height",        selector: { text: {} } },
-        { name: "zone_height",              label: "Zone Height",              selector: { text: {} } },
-        { name: "car_image_left",           label: "Car Image Left",           selector: { text: {} } },
-        { name: "car_image_top",            label: "Car Image Top",            selector: { text: {} } },
-        { name: "car_image_width",          label: "Car Image Width",          selector: { text: {} } },
-        { name: "car_image_height",         label: "Car Image Height",         selector: { text: {} } },
-        { name: "car_image_object_position",label: "Car Image Object Position", selector: { text: {} } },
-        { name: "car_image_scale",          label: "Car Image Scale",          selector: { number: { min: 0.1, max: 3, step: 0.01, mode: "box" } } },
-        { name: "climate_badge_left",       label: "Climate Badge Left",       selector: { text: {} } },
-        { name: "climate_badge_top",        label: "Climate Badge Top",        selector: { text: {} } },
-        { name: "climate_badge_transform",  label: "Climate Badge Transform",  selector: { text: {} } },
-        { name: "power_chip_left",          label: "Power Chip Left",          selector: { text: {} } },
-        { name: "power_chip_bottom",        label: "Power Chip Bottom",        selector: { text: {} } },
-        { name: "warning_right",            label: "Warning Right",            selector: { text: {} } },
-        { name: "warning_top",              label: "Warning Top",              selector: { text: {} } },
-        { name: "battery_left",             label: "Battery Left",             selector: { text: {} } },
-        { name: "battery_bottom",           label: "Battery Bottom",           selector: { text: {} } },
-        { name: "battery_width",            label: "Battery Width",            selector: { text: {} } },
-        { name: "car_overlay_left",         label: "Overlay Left",             selector: { text: {} } },
-        { name: "car_overlay_top",          label: "Overlay Top",              selector: { text: {} } },
+        { name: "visual_min_height",         label: "Visual Min Height",         selector: { text: {} } },
+        { name: "zone_height",               label: "Zone Height",               selector: { text: {} } },
+        { name: "car_image_left",            label: "Car Image Left",            selector: { text: {} } },
+        { name: "car_image_top",             label: "Car Image Top",             selector: { text: {} } },
+        { name: "car_image_width",           label: "Car Image Width",           selector: { text: {} } },
+        { name: "car_image_height",          label: "Car Image Height",          selector: { text: {} } },
+        { name: "car_image_object_position", label: "Car Image Object Position", selector: { text: {} } },
+        { name: "car_image_scale",           label: "Car Image Scale",           selector: { number: { min: 0.1, max: 3, step: 0.01, mode: "box" } } },
+        { name: "climate_badge_left",        label: "Climate Badge Left",        selector: { text: {} } },
+        { name: "climate_badge_top",         label: "Climate Badge Top",         selector: { text: {} } },
+        { name: "climate_badge_transform",   label: "Climate Badge Transform",   selector: { text: {} } },
+        { name: "power_chip_left",           label: "Power Chip Left",           selector: { text: {} } },
+        { name: "power_chip_bottom",         label: "Power Chip Bottom",         selector: { text: {} } },
+        { name: "warning_right",             label: "Warning Right",             selector: { text: {} } },
+        { name: "warning_top",               label: "Warning Top",               selector: { text: {} } },
+        { name: "battery_left",              label: "Battery Left",              selector: { text: {} } },
+        { name: "battery_bottom",            label: "Battery Bottom",            selector: { text: {} } },
+        { name: "battery_width",             label: "Battery Width",             selector: { text: {} } },
+        { name: "car_overlay_left",          label: "Overlay Left",              selector: { text: {} } },
+        { name: "car_overlay_top",           label: "Overlay Top",               selector: { text: {} } },
       ],
       { ...l },
       (val) => this._fire({ ...c, options: { ...o, layout: { ...l, ...val as Partial<EvCarLayout> } } })

@@ -29,6 +29,9 @@ entities:
   climate_temp: number.ev_climate_target_temperature
 options:
   battery_capacity_kwh: 77
+  car_name: polestar
+  car_names_csv: polestar, tesla-model-3, tesla-model-y, vw-id.3
+  asset_base_path: https://jolly-pebble-011696d10.7.azurestaticapps.net/assets/{{car name}}/images
   show_eta_when_not_charging: false
 actions:
   set_climate:
@@ -49,6 +52,8 @@ actions:
 ## Notes
 
 - The card includes a built-in visual editor in the UI editor.
+- Cars are now loaded directly in the card with defaults: `polestar, tesla-model-3, tesla-model-y, vw-id.3`.
+- Use `options.car_names_csv` to update the selectable car list in the editor.
 - All values are read from entities in `entities`.
 - Climate badge shows only when climate is on.
 - Warning icons appear for open windows/doors.

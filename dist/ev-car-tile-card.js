@@ -1,6 +1,28 @@
 const RELEASE_QUERY_HASH = "0.1.0";
 const REMOTE_ASSET_ROOT = "https://jolly-pebble-011696d10.7.azurestaticapps.net/assets";
-const REMOTE_CAR_LIST_URL = "https://jolly-pebble-011696d10.7.azurestaticapps.net/carlist.json";
+const DEFAULT_CAR_CATALOG = [
+    {
+        folder: "polestar",
+        label: "Polestar",
+        assetBasePath: `${REMOTE_ASSET_ROOT}/polestar/images`
+    },
+    {
+        folder: "tesla-model-3",
+        label: "Tesla Model 3",
+        assetBasePath: `${REMOTE_ASSET_ROOT}/tesla-model-3/images`
+    },
+    {
+        folder: "tesla-model-y",
+        label: "Tesla Model Y",
+        assetBasePath: `${REMOTE_ASSET_ROOT}/tesla-model-y/images`
+    },
+    {
+        folder: "vw-id.3",
+        label: "Volkswagen ID.3",
+        assetBasePath: `${REMOTE_ASSET_ROOT}/vw-id.3/images`
+    }
+];
+const DEFAULT_CAR_NAMES_CSV = DEFAULT_CAR_CATALOG.map((item) => item.folder).join(", ");
 class EvCarTileCard extends HTMLElement {
     static getStubConfig() {
         return {
@@ -24,6 +46,7 @@ class EvCarTileCard extends HTMLElement {
                 battery_capacity_kwh: 77,
                 show_eta_when_not_charging: false,
                 car_name: "polestar",
+                car_names_csv: DEFAULT_CAR_NAMES_CSV,
                 asset_base_path: `${REMOTE_ASSET_ROOT}/{{car name}}/images`,
                 images: {
                     home_charging: "",
@@ -519,64 +542,36 @@ class EvCarTileCardEditor extends HTMLElement {
         super();
         this._config = null;
         this._hass = null;
-        this._carCatalog = [];
-        this._carCatalogLoaded = false;
-        this._carCatalogLoadPromise = null;
-    }
-    connectedCallback() {
-        void this._loadCarCatalog();
     }
     set hass(hass) {
         this._hass = hass;
-        // Push updated hass to all ha-form instances
         this.querySelectorAll("ha-form").forEach((f) => {
             f.hass = hass;
         });
     }
-    async _loadCarCatalog() {
-        if (this._carCatalogLoaded) {
-            return;
-        }
-        if (this._carCatalogLoadPromise) {
-            return this._carCatalogLoadPromise;
-        }
-        this._carCatalogLoadPromise = (async () => {
-            try {
-                const response = await fetch(REMOTE_CAR_LIST_URL, { cache: "no-store" });
-                if (!response.ok) {
-                    return;
-                }
-                const payload = (await response.json());
-                if (!Array.isArray(payload)) {
-                    return;
-                }
-                this._carCatalog = payload
-                    .map((item) => {
-                    if (!item || typeof item !== "object") {
-                        return null;
-                    }
-                    const candidate = item;
-                    const folder = String(candidate.folder ?? "").trim();
-                    const label = String(candidate.label ?? folder).trim();
-                    const assetBasePath = String(candidate.assetBasePath ?? "").trim();
-                    if (!folder || !assetBasePath) {
-                        return null;
-                    }
-                    return {
-                        folder,
-                        label: label || folder,
-                        assetBasePath
-                    };
-                })
-                    .filter((item) => item !== null);
+    _defaultAssetBasePathForCar(carName) {
+        return `${REMOTE_ASSET_ROOT}/${encodeURIComponent(carName)}/images`;
+    }
+    _catalogFromCsv(csv) {
+        const labelsByFolder = new Map(DEFAULT_CAR_CATALOG.map((item) => [item.folder, item.label]));
+        const seen = new Set();
+        const names = String(csv)
+            .split(",")
+            .map((name) => name.trim())
+            .filter((name) => name.length > 0)
+            .filter((name) => {
+            if (seen.has(name)) {
+                return false;
             }
-            finally {
-                this._carCatalogLoaded = true;
-                this._carCatalogLoadPromise = null;
-                this._render();
-            }
-        })();
-        return this._carCatalogLoadPromise;
+            seen.add(name);
+            return true;
+        });
+        const resolvedNames = names.length ? names : DEFAULT_CAR_CATALOG.map((item) => item.folder);
+        return resolvedNames.map((folder) => ({
+            folder,
+            label: labelsByFolder.get(folder) ?? folder,
+            assetBasePath: this._defaultAssetBasePathForCar(folder)
+        }));
     }
     setConfig(config) {
         this._config = {
@@ -636,16 +631,15 @@ class EvCarTileCardEditor extends HTMLElement {
         const o = c.options;
         const imgs = o.images;
         const l = o.layout;
-        const fallbackCarName = String(o.car_name || "polestar").trim() || "polestar";
-        const catalog = this._carCatalog.length
-            ? this._carCatalog
-            : [{ folder: fallbackCarName, label: fallbackCarName, assetBasePath: String(o.asset_base_path || "").trim() }];
+        const configuredCarsCsv = String(o.car_names_csv || DEFAULT_CAR_NAMES_CSV).trim() || DEFAULT_CAR_NAMES_CSV;
+        const catalog = this._catalogFromCsv(configuredCarsCsv);
         const carNameOptions = catalog.map((item) => ({ label: item.label, value: item.folder }));
         const selectedCar = String(o.car_name || "").trim();
         const selectedCarName = catalog.some((item) => item.folder === selectedCar)
             ? selectedCar
             : catalog[0].folder;
-        const selectedCarAssetBasePath = catalog.find((item) => item.folder === selectedCarName)?.assetBasePath ?? o.asset_base_path ?? "";
+        const selectedCarAssetBasePath = catalog.find((item) => item.folder === selectedCarName)?.assetBasePath
+            ?? this._defaultAssetBasePathForCar(selectedCarName);
         this.innerHTML = `<style>
       :host { display: block; }
       ha-form { display: block; margin-bottom: 8px; }
@@ -661,10 +655,8 @@ class EvCarTileCardEditor extends HTMLElement {
       }
     </style>`;
         const app = (el) => this.appendChild(el);
-        // ── Card ──────────────────────────────────────────────────────────────────
         app(this._section("Card"));
         app(this._buildForm([{ name: "name", label: "Card Name", selector: { text: {} } }], { name: c.name ?? "" }, (val) => this._fire({ ...c, ...val })));
-        // ── Entities ──────────────────────────────────────────────────────────────
         app(this._section("Entities"));
         app(this._buildForm([
             { name: "power", label: "Power (kW sensor)", selector: { entity: {} } },
@@ -680,7 +672,6 @@ class EvCarTileCardEditor extends HTMLElement {
             { name: "eta", label: "ETA (minutes sensor)", selector: { entity: {} } },
             { name: "is_moving", label: "Is Moving (binary_sensor)", selector: { entity: {} } },
         ], { ...e }, (val) => this._fire({ ...c, entities: { ...e, ...val } })));
-        // ── Options ───────────────────────────────────────────────────────────────
         app(this._section("Options"));
         app(this._buildForm([
             { name: "battery_capacity_kwh", label: "Battery Capacity (kWh)", selector: { number: { min: 1, max: 300, step: 0.1, mode: "box" } } },
@@ -691,28 +682,32 @@ class EvCarTileCardEditor extends HTMLElement {
         ], {
             battery_capacity_kwh: o.battery_capacity_kwh ?? 77,
             car_name: selectedCarName,
-            asset_base_path: selectedCarAssetBasePath,
+            car_names_csv: configuredCarsCsv,
+            asset_base_path: o.asset_base_path ?? selectedCarAssetBasePath,
             show_eta_when_not_charging: o.show_eta_when_not_charging ?? false,
         }, (val) => {
             const raw = val;
+            const nextCarsCsv = String(raw.car_names_csv ?? configuredCarsCsv).trim() || DEFAULT_CAR_NAMES_CSV;
+            const nextCatalog = this._catalogFromCsv(nextCarsCsv);
             const requestedCar = String(raw.car_name ?? selectedCarName).trim();
-            const normalizedCarName = catalog.some((item) => item.folder === requestedCar)
+            const normalizedCarName = nextCatalog.some((item) => item.folder === requestedCar)
                 ? requestedCar
-                : selectedCarName;
-            const nextAssetBasePath = catalog.find((item) => item.folder === normalizedCarName)?.assetBasePath ?? selectedCarAssetBasePath;
-            const currentAssetBasePath = String(raw.asset_base_path ?? "").trim();
-            const shouldFollowSelectedCar = !currentAssetBasePath || currentAssetBasePath === selectedCarAssetBasePath;
+                : nextCatalog[0].folder;
+            const previousDefaultAssetBasePath = this._defaultAssetBasePathForCar(selectedCarName);
+            const nextDefaultAssetBasePath = this._defaultAssetBasePathForCar(normalizedCarName);
+            const currentAssetBasePath = String(raw.asset_base_path ?? o.asset_base_path ?? "").trim();
+            const shouldFollowSelectedCar = !currentAssetBasePath || currentAssetBasePath === previousDefaultAssetBasePath;
             this._fire({
                 ...c,
                 options: {
                     ...o,
                     ...raw,
+                    car_names_csv: nextCarsCsv,
                     car_name: normalizedCarName,
-                    asset_base_path: shouldFollowSelectedCar ? nextAssetBasePath : currentAssetBasePath
+                    asset_base_path: shouldFollowSelectedCar ? nextDefaultAssetBasePath : currentAssetBasePath
                 }
             });
         }));
-        // ── Image Overrides ───────────────────────────────────────────────────────
         app(this._section("Image Overrides"));
         app(this._buildForm([
             { name: "home_charging", label: "Home — Charging", selector: { text: {} } },
@@ -723,7 +718,6 @@ class EvCarTileCardEditor extends HTMLElement {
             { name: "warning_window", label: "Warning: Window Open Icon", selector: { text: {} } },
             { name: "warning_door", label: "Warning: Door Open Icon", selector: { text: {} } },
         ], { ...imgs }, (val) => this._fire({ ...c, options: { ...o, images: { ...imgs, ...val } } })));
-        // ── Layout ────────────────────────────────────────────────────────────────
         app(this._section("Layout"));
         app(this._buildForm([
             { name: "visual_min_height", label: "Visual Min Height", selector: { text: {} } },
