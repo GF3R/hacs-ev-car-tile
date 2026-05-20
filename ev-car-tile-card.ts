@@ -158,6 +158,8 @@ class EvCarTileCard extends HTMLElement {
 
   private _lastTileWidth: number;
 
+  private _startupBannerShown: boolean;
+
   static getStubConfig(): EvCarTileCardConfig {
     return {
       type: "custom:ev-car-tile-card",
@@ -225,6 +227,7 @@ class EvCarTileCard extends HTMLElement {
     this._hass = null;
     this._resizeObserver = null;
     this._lastTileWidth = 0;
+    this._startupBannerShown = false;
 
     if (typeof ResizeObserver !== "undefined") {
       this._resizeObserver = new ResizeObserver((entries: ResizeObserverEntry[]) => {
@@ -241,6 +244,22 @@ class EvCarTileCard extends HTMLElement {
   }
 
   connectedCallback(): void {
+    if (!this._startupBannerShown) {
+      this._startupBannerShown = true;
+      console.log(
+        "%c EV Car Tile Card %c v%s %c",
+        "color: #0f172a; background: linear-gradient(135deg, #f8fafc 0%, #dbeafe 45%, #bae6fd 100%); font-size: 14px; font-weight: 800; padding: 8px 14px; border: 1px solid rgba(15, 23, 42, 0.12); border-radius: 999px 999px 999px 12px; text-shadow: 0 1px 0 rgba(255,255,255,0.7);",
+        "color: #16a34a; background: #ecfdf5; font-size: 12px; font-weight: 700; padding: 8px 12px; border: 1px solid rgba(22, 163, 74, 0.18); border-radius: 999px;",
+        RELEASE_QUERY_HASH,
+        "color: #475569; background: #f8fafc; font-size: 12px; padding: 8px 10px; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 999px;",
+        {
+          car: "Volkswagen ID.3",
+          version: RELEASE_QUERY_HASH,
+          assets: "https://jolly-pebble-011696d10.7.azurestaticapps.net"
+        }
+      );
+    }
+
     this._resizeObserver?.observe(this);
   }
 
