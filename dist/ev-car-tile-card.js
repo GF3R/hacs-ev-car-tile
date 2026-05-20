@@ -434,14 +434,15 @@ class EvCarTileCard extends HTMLElement {
           top: calc(100% - ${powerChipBottom} - 12px);
           display: ${charging ? "flex" : "none"};
           align-items: center;
-          gap: 0.2em;
+          gap: 0.35em;
           z-index: 5;
-          padding: 0.16em 0.4em;
+          padding: 0.3em 0.7em;
+          min-height: 22px;
           border-radius: 999px;
           background: rgba(31, 72, 50, 0.78);
           border: 1px solid rgba(153, 255, 185, 0.9);
           color: #b8ffd0;
-          font-size: 9px;
+          font-size: 10px;
           font-weight: 700;
           box-shadow: 0 0 18px rgba(90, 255, 150, 0.5);
           backdrop-filter: blur(4px);
@@ -452,34 +453,6 @@ class EvCarTileCard extends HTMLElement {
           font-family: inherit;
           line-height: inherit;
           outline: none;
-        }
-
-        .kw-hit-area {
-          position: absolute;
-          left: calc(${powerChipLeft} - 18px);
-          top: calc(100% - ${powerChipBottom} - 18px);
-          width: 54px;
-          height: 42px;
-          z-index: 6;
-          padding: 0;
-          border: 0;
-          background: transparent;
-          cursor: pointer;
-          appearance: none;
-          -webkit-appearance: none;
-          font-family: inherit;
-          line-height: inherit;
-          outline: none;
-        }
-
-        .kw-hit-area:disabled {
-          cursor: default;
-        }
-
-        .kw-hit-area:focus-visible {
-          outline: 2px solid var(--primary-color);
-          outline-offset: 2px;
-          border-radius: 10px;
         }
 
         .kw-badge:disabled {
@@ -615,8 +588,7 @@ class EvCarTileCard extends HTMLElement {
               <div class="battery-labels">${current}% / ${target}%</div>
             </div>
 
-            <button class="kw-hit-area" type="button" aria-label="Charger controls" ${isMoving ? "disabled" : ""}></button>
-            <span class="kw-badge ${charging ? "charging" : ""}">⚡ ${power.toFixed(1)} kW</span>
+            <button class="kw-badge ${charging ? "charging" : ""}" type="button" aria-label="Charger: ${power.toFixed(1)} kW" ${isMoving ? "disabled" : ""}>⚡ ${power.toFixed(1)} kW</button>
 
             <span
               class="warning"
@@ -641,7 +613,7 @@ class EvCarTileCard extends HTMLElement {
       </ha-card>
     `;
         this.shadowRoot.querySelector(".climate-badge")?.addEventListener("click", () => this._handleClimateBadgeAction());
-        this.shadowRoot.querySelector(".kw-hit-area")?.addEventListener("click", () => this._handleChargerBadgeAction());
+        this.shadowRoot.querySelector(".kw-badge")?.addEventListener("click", () => this._handleChargerBadgeAction());
     }
 }
 class EvCarTileCardEditor extends HTMLElement {
@@ -731,6 +703,77 @@ class EvCarTileCardEditor extends HTMLElement {
         el.className = "section-title";
         el.textContent = title;
         return el;
+    }
+    _actionSchema(fieldName, label) {
+        return {
+            name: fieldName,
+            label,
+            selector: {
+                object: {
+                    fields: {
+                        action: {
+                            label: "Action",
+                            selector: {
+                                select: {
+                                    mode: "dropdown",
+                                    options: ["more-info", "toggle", "navigate", "url", "call-service", "none"]
+                                }
+                            }
+                        },
+                        entity: {
+                            label: "Entity",
+                            selector: {
+                                entity: {}
+                            }
+                        },
+                        navigation_path: {
+                            label: "Navigation Path",
+                            selector: {
+                                text: {}
+                            }
+                        },
+                        url_path: {
+                            label: "URL Path",
+                            selector: {
+                                text: {}
+                            }
+                        },
+                        service: {
+                            label: "Service",
+                            selector: {
+                                text: {}
+                            }
+                        },
+                        service_data: {
+                            label: "Service Data",
+                            selector: {
+                                object: {}
+                            }
+                        },
+                        target: {
+                            label: "Target",
+                            selector: {
+                                target: {}
+                            }
+                        },
+                        confirmation: {
+                            label: "Confirmation",
+                            selector: {
+                                object: {}
+                            }
+                        }
+                    }
+                }
+            }
+        };
+    }
+    _normalizeAction(value, fallback) {
+        const action = String(value?.action ?? fallback.action ?? "more-info").trim() || "more-info";
+        return {
+            ...fallback,
+            ...value,
+            action
+        };
     }
     _render() {
         const c = this._config || EvCarTileCard.getStubConfig();
@@ -850,12 +893,19 @@ class EvCarTileCardEditor extends HTMLElement {
         ], { ...l }, (val) => this._fire({ ...c, options: { ...o, layout: { ...l, ...val } } })));
         app(this._section("Actions"));
         app(this._buildForm([
-            { name: "climate_badge_tap_action", label: "Climate Badge Tap Action", selector: { action: {} } },
-            { name: "charger_badge_tap_action", label: "Charger Badge Tap Action", selector: { action: {} } }
+            this._actionSchema("climate_badge_tap_action", "Climate Badge Tap Action"),
+            this._actionSchema("charger_badge_tap_action", "Charger Badge Tap Action")
         ], {
             climate_badge_tap_action: c.climate_badge_tap_action ?? { action: "more-info" },
             charger_badge_tap_action: c.charger_badge_tap_action ?? { action: "more-info" }
-        }, (val) => this._fire({ ...c, ...val })));
+        }, (val) => {
+            const raw = val;
+            this._fire({
+                ...c,
+                climate_badge_tap_action: this._normalizeAction(raw.climate_badge_tap_action, c.climate_badge_tap_action ?? { action: "more-info" }),
+                charger_badge_tap_action: this._normalizeAction(raw.charger_badge_tap_action, c.charger_badge_tap_action ?? { action: "more-info" })
+            });
+        }));
     }
 }
 customElements.define("ev-car-tile-card", EvCarTileCard);
