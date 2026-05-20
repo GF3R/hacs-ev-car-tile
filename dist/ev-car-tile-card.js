@@ -221,17 +221,21 @@ class EvCarTileCard extends HTMLElement {
         }
         return this._asset(value);
     }
+    _fireMoreInfo(entityId) {
+        if (!entityId) {
+            return;
+        }
+        this.dispatchEvent(new CustomEvent("hass-more-info", {
+            detail: { entityId },
+            bubbles: true,
+            composed: true,
+        }));
+    }
     _executeAction(action, fallbackEntityId) {
         const entityId = action.entity ?? fallbackEntityId;
         switch (action.action) {
             case "more-info":
-                if (entityId) {
-                    this.dispatchEvent(new CustomEvent("hass-more-info", {
-                        detail: { entityId },
-                        bubbles: true,
-                        composed: true,
-                    }));
-                }
+                this._fireMoreInfo(entityId);
                 break;
             case "navigate":
                 if (action.navigation_path) {
