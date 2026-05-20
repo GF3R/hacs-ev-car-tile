@@ -111,6 +111,11 @@ class EvCarTileCard extends HTMLElement {
         if (!config || config.type !== "custom:ev-car-tile-card") {
             throw new Error("Invalid config for ev-car-tile-card");
         }
+        console.log("[ev-car-tile-card] setConfig received", {
+            name: config.name,
+            entityIds: config.entities,
+            optionKeys: config.options ? Object.keys(config.options) : []
+        });
         const defaultConfig = EvCarTileCard.getStubConfig();
         this._config = {
             ...defaultConfig,
@@ -136,6 +141,12 @@ class EvCarTileCard extends HTMLElement {
     }
     set hass(hass) {
         this._hass = hass;
+        console.log("[ev-car-tile-card] hass updated", {
+            hasChargingEntity: Boolean(this._config?.entities?.charging),
+            hasClimateEntity: Boolean(this._config?.entities?.climate_on),
+            chargingState: this._config?.entities?.charging ? hass.states[this._config.entities.charging]?.state : undefined,
+            climateState: this._config?.entities?.climate_on ? hass.states[this._config.entities.climate_on]?.state : undefined
+        });
         this._render();
     }
     getCardSize() {
@@ -232,6 +243,7 @@ class EvCarTileCard extends HTMLElement {
             bubbles: true,
             composed: true,
         }));
+        console.log("[ev-car-tile-card] hass-more-info dispatched", { entityId });
     }
     _executeAction(action, fallbackEntityId) {
         const entityId = action.entity ?? fallbackEntityId;
@@ -355,6 +367,25 @@ class EvCarTileCard extends HTMLElement {
         const warningWindow = !windowsClosed;
         const warningDoor = !doorsClosed;
         const warningVisible = warningWindow || warningDoor;
+        console.log("[ev-car-tile-card] render state", {
+            current,
+            target,
+            power,
+            range,
+            charging,
+            home,
+            windowsClosed,
+            doorsClosed,
+            climateOn,
+            climateTemp,
+            isMoving,
+            chargerHasPower,
+            etaVisible,
+            warningVisible,
+            chargerBadgeVisible: charging,
+            chargerEntity: e.charging,
+            climateEntity: e.climate_on
+        });
         this.shadowRoot.innerHTML = `
       <style>
         :host {
