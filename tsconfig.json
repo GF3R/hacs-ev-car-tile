@@ -6,7 +6,8 @@
     "outDir": "dist",
     "removeComments": false,
     "strict": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "ignoreDeprecations": "6.0"
   },
   "files": ["ev-car-tile-card.ts"]
 }
