@@ -111,11 +111,6 @@ class EvCarTileCard extends HTMLElement {
         if (!config || config.type !== "custom:ev-car-tile-card") {
             throw new Error("Invalid config for ev-car-tile-card");
         }
-        console.log("[ev-car-tile-card] setConfig received", {
-            name: config.name,
-            entityIds: config.entities,
-            optionKeys: config.options ? Object.keys(config.options) : []
-        });
         const defaultConfig = EvCarTileCard.getStubConfig();
         this._config = {
             ...defaultConfig,
@@ -141,12 +136,6 @@ class EvCarTileCard extends HTMLElement {
     }
     set hass(hass) {
         this._hass = hass;
-        console.log("[ev-car-tile-card] hass updated", {
-            hasChargingEntity: Boolean(this._config?.entities?.charging),
-            hasClimateEntity: Boolean(this._config?.entities?.climate_on),
-            chargingState: this._config?.entities?.charging ? hass.states[this._config.entities.charging]?.state : undefined,
-            climateState: this._config?.entities?.climate_on ? hass.states[this._config.entities.climate_on]?.state : undefined
-        });
         this._render();
     }
     getCardSize() {
@@ -234,20 +223,16 @@ class EvCarTileCard extends HTMLElement {
     }
     _fireMoreInfo(entityId) {
         if (!entityId) {
-            console.warn("[ev-car-tile-card] more-info skipped: missing entity id");
             return;
         }
-        console.log("[ev-car-tile-card] dispatching hass-more-info", { entityId });
         this.dispatchEvent(new CustomEvent("hass-more-info", {
             detail: { entityId },
             bubbles: true,
             composed: true,
         }));
-        console.log("[ev-car-tile-card] hass-more-info dispatched", { entityId });
     }
     _executeAction(action, fallbackEntityId) {
         const entityId = action.entity ?? fallbackEntityId;
-        console.log("[ev-car-tile-card] executing action", { action, fallbackEntityId, entityId });
         switch (action.action) {
             case "more-info":
                 this._fireMoreInfo(entityId);
@@ -282,19 +267,10 @@ class EvCarTileCard extends HTMLElement {
     }
     _handleClimateBadgeAction() {
         const action = this._config?.climate_badge_tap_action ?? { action: "more-info" };
-        console.log("[ev-car-tile-card] climate badge clicked", { action });
         this._executeAction(action, this._config?.entities?.climate_on ?? "");
     }
     _handleChargerBadgeAction() {
-        if (this._bool(this._config?.entities?.is_moving ?? "", false)) {
-            console.warn("[ev-car-tile-card] charger badge click ignored: car is moving");
-            return;
-        }
         const action = this._config?.charger_badge_tap_action ?? { action: "more-info" };
-        console.log("[ev-car-tile-card] charger badge clicked", {
-            action,
-            chargingEntity: this._config?.entities?.charging ?? ""
-        });
         this._executeAction(action, this._config?.entities?.charging ?? "");
     }
     _render() {
@@ -367,25 +343,6 @@ class EvCarTileCard extends HTMLElement {
         const warningWindow = !windowsClosed;
         const warningDoor = !doorsClosed;
         const warningVisible = warningWindow || warningDoor;
-        console.log("[ev-car-tile-card] render state", {
-            current,
-            target,
-            power,
-            range,
-            charging,
-            home,
-            windowsClosed,
-            doorsClosed,
-            climateOn,
-            climateTemp,
-            isMoving,
-            chargerHasPower,
-            etaVisible,
-            warningVisible,
-            chargerBadgeVisible: charging,
-            chargerEntity: e.charging,
-            climateEntity: e.climate_on
-        });
         this.shadowRoot.innerHTML = `
       <style>
         :host {
@@ -658,11 +615,9 @@ class EvCarTileCard extends HTMLElement {
       </ha-card>
     `;
         this.shadowRoot.querySelector(".climate-badge")?.addEventListener("click", () => {
-            console.log("[ev-car-tile-card] climate badge DOM click received");
             this._handleClimateBadgeAction();
         });
         this.shadowRoot.querySelector(".kw-badge")?.addEventListener("click", () => {
-            console.log("[ev-car-tile-card] charger badge DOM click received");
             this._handleChargerBadgeAction();
         });
     }
