@@ -1,6 +1,8 @@
 # EV Car Tile Card
 
-A HACS-ready custom Lovelace card for EV status visualization.
+A HACS-ready custom card for EV status visualization.
+
+![Card Demo](2026-05-20-20-24-16.png)
 
 ## Install with HACS
 
@@ -10,6 +12,12 @@ A HACS-ready custom Lovelace card for EV status visualization.
 4. Add the resource if needed:
    - URL: `/hacsfiles/hacs-ev-car-tile/ev-car-tile-card.js`
    - Type: `module`
+
+## Hosted Assets
+
+The card uses the hosted car catalog and image assets from:
+
+- https://jolly-pebble-011696d10.7.azurestaticapps.net
 
 ## Example Card Configuration
 
@@ -52,7 +60,7 @@ actions:
 ## Notes
 
 - The card includes a built-in visual editor in the UI editor.
-- Cars are now loaded directly in the card with defaults: `polestar, tesla-model-3, tesla-model-y, vw-id.3`.
+- Cars are loaded directly in the card from the hosted catalog at `https://jolly-pebble-011696d10.7.azurestaticapps.net/carlist.json`.
 - Use `options.car_names_csv` to update the selectable car list in the editor.
 - All values are read from entities in `entities`.
 - Climate badge shows only when climate is on.

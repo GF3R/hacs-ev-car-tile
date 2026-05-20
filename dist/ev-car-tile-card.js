@@ -289,6 +289,7 @@ class EvCarTileCard extends HTMLElement {
         const climateOn = this._bool(e.climate_on, false);
         const climateTemp = this._num(e.climate_temp, 21);
         const isMoving = this._bool(e.is_moving, false);
+        const chargerHasPower = charging && power > 0;
         const carImageScale = this._layoutNumberValue("car_image_scale", 1);
         const visualMinHeight = this._layoutValue("visual_min_height", "220px");
         const zoneHeight = this._layoutValue("zone_height", "200px");
@@ -444,7 +445,7 @@ class EvCarTileCard extends HTMLElement {
           color: #b8ffd0;
           font-size: 10px;
           font-weight: 700;
-          box-shadow: 0 0 18px rgba(90, 255, 150, 0.5);
+          box-shadow: ${chargerHasPower ? "0 0 18px rgba(90, 255, 150, 0.5)" : "none"};
           backdrop-filter: blur(4px);
           transform: translateY(-50%);
           cursor: pointer;
