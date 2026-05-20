@@ -588,7 +588,7 @@ class EvCarTileCard extends HTMLElement {
               <div class="battery-labels">${current}% / ${target}%</div>
             </div>
 
-            <button class="kw-badge ${charging ? "charging" : ""}" type="button" aria-label="Charger: ${power.toFixed(1)} kW" ${isMoving ? "disabled" : ""}>⚡ ${power.toFixed(1)} kW</button>
+            <button class="kw-badge ${charging ? "charging" : ""}" type="button" aria-label="Charger: ${power.toFixed(1)} kW">⚡ ${power.toFixed(1)} kW</button>
 
             <span
               class="warning"
