@@ -1,3 +1,4 @@
+"use strict";
 const RELEASE_QUERY_HASH = "0.1.0";
 const REMOTE_ASSET_ROOT = "https://jolly-pebble-011696d10.7.azurestaticapps.net/assets";
 const DEFAULT_CAR_CATALOG = [
@@ -79,7 +80,8 @@ class EvCarTileCard extends HTMLElement {
                     car_overlay_left: "6px",
                     car_overlay_top: "4px"
                 }
-            }
+            },
+            climate_badge_tap_action: { action: "more-info" }
         };
     }
     constructor() {
@@ -220,6 +222,47 @@ class EvCarTileCard extends HTMLElement {
         }
         return this._asset(value);
     }
+    _handleClimateBadgeAction() {
+        const action = this._config?.climate_badge_tap_action ?? { action: "more-info" };
+        const entityId = action.entity ?? this._config?.entities?.climate_on ?? "";
+        switch (action.action) {
+            case "more-info":
+                if (entityId) {
+                    this.dispatchEvent(new CustomEvent("hass-more-info", {
+                        detail: { entityId },
+                        bubbles: true,
+                        composed: true,
+                    }));
+                }
+                break;
+            case "navigate":
+                if (action.navigation_path) {
+                    window.history.pushState(null, "", action.navigation_path);
+                    window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+                }
+                break;
+            case "url":
+                if (action.url_path) {
+                    const isExternal = action.url_path.startsWith("http://") || action.url_path.startsWith("https://");
+                    window.open(action.url_path, isExternal ? "_blank" : "_self");
+                }
+                break;
+            case "call-service":
+                if (action.service && this._hass) {
+                    const [domain, service] = action.service.split(".", 2);
+                    this._hass.callService(domain, service, action.service_data, action.target);
+                }
+                break;
+            case "toggle":
+                if (entityId && this._hass) {
+                    this._hass.callService("homeassistant", "toggle", { entity_id: entityId });
+                }
+                break;
+            case "none":
+            default:
+                break;
+        }
+    }
     _render() {
         if (!this._config || !this._hass || !this.shadowRoot) {
             return;
@@ -351,6 +394,17 @@ class EvCarTileCard extends HTMLElement {
           color: ${climateOn ? "var(--primary-text-color)" : "var(--disabled-text-color, rgba(var(--rgb-primary-text-color), 0.38))"};
           font-weight: 600;
           opacity: ${climateOn ? "1" : "0.5"};
+          cursor: pointer;
+          appearance: none;
+          -webkit-appearance: none;
+          font-family: inherit;
+          line-height: inherit;
+          outline: none;
+        }
+
+        .climate-badge:focus-visible {
+          outline: 2px solid var(--primary-color);
+          outline-offset: 2px;
         }
 
         .climate-icon {
@@ -499,7 +553,7 @@ class EvCarTileCard extends HTMLElement {
       <ha-card>
         <div class="ev-visual">
           <div class="ev-car-zone">
-            <span class="climate-badge"><img class="climate-icon" src="${this._asset("noun-thermostat.svg")}" alt="" />${climateTemp}°C</span>
+            <button class="climate-badge" type="button" aria-label="Climate: ${climateTemp}°C"><img class="climate-icon" src="${this._asset("noun-thermostat.svg")}" alt="" />${climateTemp}°C</button>
 
             <div class="battery">
               <span class="eta">${etaText}</span>
@@ -535,6 +589,7 @@ class EvCarTileCard extends HTMLElement {
         </div>
       </ha-card>
     `;
+        this.shadowRoot.querySelector(".climate-badge")?.addEventListener("click", () => this._handleClimateBadgeAction());
     }
 }
 class EvCarTileCardEditor extends HTMLElement {
@@ -741,6 +796,8 @@ class EvCarTileCardEditor extends HTMLElement {
             { name: "car_overlay_left", label: "Overlay Left", selector: { text: {} } },
             { name: "car_overlay_top", label: "Overlay Top", selector: { text: {} } },
         ], { ...l }, (val) => this._fire({ ...c, options: { ...o, layout: { ...l, ...val } } })));
+        app(this._section("Actions"));
+        app(this._buildForm([{ name: "climate_badge_tap_action", label: "Climate Badge Tap Action", selector: { action: {} } }], { climate_badge_tap_action: c.climate_badge_tap_action ?? { action: "more-info" } }, (val) => this._fire({ ...c, ...val })));
     }
 }
 customElements.define("ev-car-tile-card", EvCarTileCard);
